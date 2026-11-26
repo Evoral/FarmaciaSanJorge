@@ -300,7 +300,7 @@ describe("verificarOperadorEnTx", () => {
   it.each([
     ["sin prueba", {}],
     ["sin pin", { prueba: { metodo: "PIN" } }],
-    ["método desconocido", { prueba: { metodo: "HUELLA", pin: "4829" } }],
+    ["método desconocido", { prueba: { metodo: "BIOMETRIA", pin: "4829" } }],
     ["PIN vacío", { prueba: { metodo: "PIN", pin: "" } }],
     ["PIN demasiado largo (>64)", { prueba: { metodo: "PIN", pin: "1".repeat(65) } }],
   ])("credencial mal formada (%s): se rechaza con mensaje genérico sin consultar candidatos ni auditar", async (_caso, malFormada) => {

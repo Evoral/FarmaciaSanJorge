@@ -14,9 +14,14 @@
 import { METODOS } from "@/modules/auth/domain/verificacion-identidad";
 import { calcularCambios } from "../domain/presentacion";
 
-/** The catalog label of a verification method (`PIN` -> "PIN"); an unknown code (a method removed later) is shown as stored. */
+/**
+ * The catalog label of a verification method as it reads inside a sentence: an acronym stays as is (`PIN` -> "PIN"), a
+ * word is lower case (`HUELLA` -> "huella"). An unknown code (a method removed later) is shown as stored.
+ */
 function etiquetaDeMetodo(codigo: string): string {
-  return Object.hasOwn(METODOS, codigo) ? METODOS[codigo as keyof typeof METODOS].etiqueta : codigo;
+  if (!Object.hasOwn(METODOS, codigo)) return codigo;
+  const { etiqueta } = METODOS[codigo as keyof typeof METODOS];
+  return etiqueta === etiqueta.toUpperCase() ? etiqueta : etiqueta.toLowerCase();
 }
 
 function formatJson(value: unknown): string {

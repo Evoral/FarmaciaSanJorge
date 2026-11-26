@@ -10,7 +10,7 @@
  */
 
 /** What the empleado presents, discriminated by `metodo`. */
-export type PruebaDeIdentidad = { metodo: "PIN"; pin: string };
+export type PruebaDeIdentidad = { metodo: "PIN"; pin: string } | { metodo: "HUELLA"; huella: string };
 
 export type MetodoVerificacion = PruebaDeIdentidad["metodo"];
 
@@ -38,7 +38,14 @@ export interface DescripcionDeMetodo<M extends MetodoVerificacion> {
 
 export const METODOS: { [M in MetodoVerificacion]: DescripcionDeMetodo<M> } = {
   PIN: { metodo: "PIN", etiqueta: "PIN", claves: ["pin"], siempreHabilitado: true, almacen: "USUARIO_PIN" },
+  // The proof key is `huella`, not `codigo`: the logger redacts by key name and `codigo` would also hide permiso and droga codes.
+  HUELLA: { metodo: "HUELLA", etiqueta: "Huella", claves: ["huella"], siempreHabilitado: false, almacen: "CREDENCIAL_OPERADOR" },
 };
+
+/** The code a keyboard-wedge reader types for the huella: at least 6 characters (spec "Método huella — código de lector"). */
+export const HUELLA_LONGITUD_MINIMA = 6;
+/** Upper bound of a huella code (the PIN's own bound is 64): a reader that types more than this is misconfigured. */
+export const HUELLA_LONGITUD_MAXIMA = 128;
 
 /** Every method, derived from the catalog keys: `METODOS` is a mapped type, so a method missing there fails the typecheck. */
 export const METODOS_VERIFICACION = Object.keys(METODOS) as readonly MetodoVerificacion[];
@@ -61,6 +68,9 @@ export interface IdentificadorDeEmpleado<M extends MetodoVerificacion, TContexto
   readonly metodo: M;
   identificar(contexto: TContexto, prueba: PruebaDe<M>): Promise<ResultadoIdentificacion>;
 }
+
+/** The methods whose enrolled secret lives in the generic per-method credential table (`fsj.credencial_operador`): the generic credential use cases serve exactly these. */
+export const METODOS_CON_CREDENCIAL_PROPIA: readonly MetodoVerificacion[] = METODOS_VERIFICACION.filter((metodo) => METODOS[metodo].almacen === "CREDENCIAL_OPERADOR");
 
 /** The methods a farmacia can switch on and off (everything but the always-on ones), in catalog order. */
 export const METODOS_OPCIONALES: readonly MetodoVerificacion[] = METODOS_VERIFICACION.filter((metodo) => !METODOS[metodo].siempreHabilitado);

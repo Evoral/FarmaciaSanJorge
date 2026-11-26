@@ -122,7 +122,7 @@ El mensaje del PIN rechazado es «El PIN no corresponde a ningún empleado habil
 
 ### Requirement: S9 — Auditoría de intentos de identificación rechazados
 
-Cada intento de identificación de operador rechazado MUST auditarse a nombre de la cuenta de sector con entidad operador y acción AUTORIZAR, registrando como destino a la propia cuenta de sector (no hay usuario seleccionado), el método con que se intentó y el motivo interno del rechazo, y sin almacenar jamás el código ingresado (PIN o huella). Una prueba de un método desconocido o deshabilitado en la farmacia MUST auditarse igual que cualquier otro rechazo.
+Cada intento de identificación de operador rechazado MUST auditarse a nombre de la cuenta de sector con entidad operador y acción AUTORIZAR, registrando como destino a la propia cuenta de sector (no hay usuario seleccionado), el método con que se intentó y el motivo interno del rechazo, y sin almacenar jamás el código ingresado (PIN o huella). Una prueba de un método deshabilitado en la farmacia MUST auditarse igual que cualquier otro rechazo. En cambio, una prueba que nombra un método desconocido o que está malformada para su método MUST rechazarse con el mensaje genérico y NO se audita (no hay un intento de identificación que registrar).
 
 #### Scenario: Registro de auditoría ante PIN incorrecto
 - **GIVEN** un intento de identificación en cuenta de sector con PIN inválido
@@ -220,17 +220,22 @@ Sumar un método nuevo MUST requerir solo definir ese método (cómo se enrola y
 
 ### Requirement: Rechazo en el servidor de pruebas inválidas
 
-Una prueba que nombra un método desconocido, o está malformada para su método, MUST rechazarse en el servidor antes de abrir ninguna transacción y antes de cualquier efecto de negocio, con el mismo rechazo genérico y la misma auditoría (S9) que un PIN equivocado.
+Una prueba que nombra un método desconocido, o está malformada para su método, MUST rechazarse en el servidor antes de cualquier efecto de negocio, con el rechazo genérico y sin auditoría (S9 solo audita los intentos de identificación rechazados, no las pruebas inválidas).
 
 #### Scenario: Prueba con método desconocido
 - **GIVEN** una cuenta de sector y una acción que exige verificación
 - **WHEN** llega una solicitud con una prueba cuyo método no existe en el registro
-- **THEN** el sistema rechaza la solicitud antes de cualquier efecto de negocio, con el rechazo genérico, y audita el intento según S9 sin guardar la prueba
+- **THEN** el sistema rechaza la solicitud antes de cualquier efecto de negocio, con el rechazo genérico, sin auditoría y sin guardar la prueba
 
 #### Scenario: Prueba malformada para su método
 - **GIVEN** una cuenta de sector y el método HUELLA habilitado
-- **WHEN** llega una prueba de método `HUELLA` con un código de menos de 6 caracteres
+- **WHEN** llega una prueba de método `HUELLA` con un código de entre 1 y 5 caracteres
 - **THEN** el sistema rechaza la solicitud como una identificación fallida, auditada según S9, sin guardar el código
+
+#### Scenario: Prueba con código vacío
+- **GIVEN** una cuenta de sector y el método HUELLA habilitado
+- **WHEN** llega una prueba de método `HUELLA` con un código vacío
+- **THEN** el sistema la trata como malformada: rechazo genérico, sin auditoría y sin guardar la prueba
 
 ### Requirement: Habilitación de métodos por farmacia
 

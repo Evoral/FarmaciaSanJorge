@@ -18,10 +18,10 @@
  */
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
-import { DomainError } from "@/shared/errors";
 import { validatePin } from "../domain/pin";
-import { hashPassword, verifyPassword } from "../domain/password";
-import { loadEsSoloAdministrador, loadUsuarioParaPassword, setPinHash } from "../infrastructure/usuario-repository";
+import { hashPassword } from "../domain/password";
+import { setPinHash } from "../infrastructure/usuario-repository";
+import { assertEmpleadoGestionaSuCredencial } from "./empleado-gestiona-su-credencial";
 import { assertPinDisponible } from "./pin-disponible";
 
 const configurarPinInput = z
@@ -45,22 +45,12 @@ export const configurarPinCommand = defineCommand({
   input: configurarPinInput,
   audit: { entidad: "usuario", accion: "MODIFICAR" },
   handler: async ({ tx, session, input }) => {
-    const usuario = await loadUsuarioParaPassword(tx, session.usuario.id);
-    if (!usuario) {
-      // Should be unreachable (the session's own usuario row always exists), but never trust it silently.
-      throw new DomainError("No se pudo configurar el PIN.");
-    }
-    if (session.sector || usuario.esSector) {
-      throw new DomainError("Las cuentas de sector no usan PIN.");
-    }
-    if (await loadEsSoloAdministrador(tx, session.usuario.id)) {
-      throw new DomainError("El Administrador no usa PIN.");
-    }
-
-    const actualMatches = await verifyPassword(usuario.passwordHash, input.passwordActual);
-    if (!actualMatches) {
-      throw new DomainError("La contraseña actual no es correcta.");
-    }
+    const usuario = await assertEmpleadoGestionaSuCredencial(tx, session, {
+      noSePudo: "No se pudo configurar el PIN.",
+      sector: "Las cuentas de sector no usan PIN.",
+      administrador: "El Administrador no usa PIN.",
+      passwordActual: input.passwordActual,
+    });
 
     await assertPinDisponible(tx, session.tenantId, session.usuario.id, input.pin);
 

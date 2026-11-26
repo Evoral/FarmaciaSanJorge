@@ -3,7 +3,9 @@
  * code alone says which empleado is acting from a cuenta de sector (openspec/specs/cuentas-de-sector/spec.md). Methods
  * differ only in where their hashes live (`FuenteDeCodigos`).
  *
- * Every candidate's hash is checked (argon2, in parallel), with no early exit: a match on two is `AMBIGUA`.
+ * Every candidate's hash is checked (argon2, in parallel), with no early exit: a match on two is `AMBIGUA`. A code shorter
+ * than the method's minimum (`longitudMinima`) cannot be anyone's: it is `NO_RECONOCIDA` without scanning, so it is
+ * rejected and audited like any other unknown code.
  * `assertCodigoDisponible` is the uniqueness check run before a code is stored: no two usuarios of a farmacia share one.
  */
 import type { Prisma } from "@/generated/prisma/client";
@@ -23,11 +25,22 @@ export interface FuenteDeCodigos {
   hashesDeOtros(tx: Prisma.TransactionClient, tenantId: string, usuarioId: string): Promise<string[]>;
 }
 
-export function identificadorPorCodigo<M extends MetodoVerificacion>(metodo: M, clave: ClaveDePrueba<M>, fuente: FuenteDeCodigos): IdentificadorDeEmpleado<M, ContextoIdentificacion> {
+export interface OpcionesDeCodigo {
+  /** Codes shorter than this identify nobody (and nothing is scanned). */
+  longitudMinima?: number;
+}
+
+export function identificadorPorCodigo<M extends MetodoVerificacion>(
+  metodo: M,
+  clave: ClaveDePrueba<M>,
+  fuente: FuenteDeCodigos,
+  { longitudMinima = 0 }: OpcionesDeCodigo = {},
+): IdentificadorDeEmpleado<M, ContextoIdentificacion> {
   return {
     metodo,
     async identificar({ tx, tenantId }, prueba) {
       const codigo = (prueba as unknown as Record<string, string>)[clave as string]!;
+      if (codigo.length < longitudMinima) return { ok: false, motivo: "NO_RECONOCIDA" };
       const candidatos = await fuente.candidatos(tx, tenantId);
       const coincide = await Promise.all(candidatos.map((candidato) => verifyPassword(candidato.hash, codigo)));
       const encontrados = candidatos.filter((_, indice) => coincide[indice]);

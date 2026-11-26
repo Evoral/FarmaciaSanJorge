@@ -82,12 +82,15 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   passwordActual: "Contraseña actual",
   pin: "PIN",
   pinRepeat: "Repetir PIN",
+  credencial: "Credencial",
+  enrolada: "Enrolada",
   roles: "Roles",
   rolCodigo: "Rol",
   rolId: "Rol",
   permisos: "Permisos",
   esSector: "Cuenta de sector",
   acciones: "Acciones que piden verificación",
+  metodo: "Método de verificación",
   metodos: "Métodos de verificación",
 
   // References to other entities (pickers or hidden ids in the UI).
