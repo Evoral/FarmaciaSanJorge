@@ -46,6 +46,7 @@ export function lineasDesdeReservas(reservas: readonly ReservaDePreparacion[]): 
       lineaPesajeId: reserva.lineaPesajeId,
       partidaIds: [reserva.partidaId],
       cantidadManual: reserva.cantidadManual ? dec(reserva.cantidadManual) : undefined,
+      equivalenciaManual: reserva.equivalenciaManual,
       motivoAperturaAdicional: reserva.motivoAperturaAdicional ?? undefined,
       cantidadReal: reserva.cantidadReal ? dec(reserva.cantidadReal) : undefined,
       pesadaAutorizadaPorId: reserva.pesadaAutorizadaPorId ?? undefined,

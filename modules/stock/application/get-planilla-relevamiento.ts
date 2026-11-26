@@ -35,6 +35,7 @@ export interface FilaPlanillaConEstado {
   drogaId: string | null;
   drogaNombre: string | null;
   drogaClase: string | null;
+  drogaSeDosificaEnUi: boolean;
   lote: string | null;
   fechaVencimiento: string | null;
   cantidad: string | null;
@@ -43,6 +44,7 @@ export interface FilaPlanillaConEstado {
   unidadSimbolo: string | null;
   unidadBaseSimbolo: string | null;
   potenciaDeclarada: string | null;
+  actividadDeclarada: string | null;
   costoUnitario: string | null;
   proveedorId: string | null;
   proveedorRazonSocial: string | null;
@@ -73,6 +75,7 @@ export interface PartidaExistenciaInicialView {
   costoUnitario: string;
   sinCosto: boolean;
   potenciaDeclarada: string | null;
+  actividadDeclarada: string | null;
   fechaApertura: Date | null;
   usada: boolean;
   anulada: boolean;
@@ -128,6 +131,7 @@ export const getPlanillaRelevamientoQuery = defineQuery({
         origen: p.origen,
         fechaVencimiento: p.fecha_vencimiento,
         potenciaDeclarada: p.potencia_declarada,
+        actividadDeclarada: p.actividad_declarada,
         costoUnitario: p.costo_unitario,
       });
     }
@@ -146,6 +150,7 @@ export const getPlanillaRelevamientoQuery = defineQuery({
           cantidad: r.cantidad,
           unidadMedidaId: r.unidad_medida_id,
           potenciaDeclarada: r.potencia_declarada,
+          actividadDeclarada: r.actividad_declarada,
           costoUnitario: r.costo_unitario,
           proveedorId: r.proveedor_id,
           textoDroga: r.texto_droga,
@@ -167,6 +172,7 @@ export const getPlanillaRelevamientoQuery = defineQuery({
         cantidad: r.cantidad,
         unidadMedidaId: r.unidad_medida_id,
         potenciaDeclarada: r.potencia_declarada,
+        actividadDeclarada: r.actividad_declarada,
         costoUnitario: r.costo_unitario,
         proveedorId: r.proveedor_id,
         textoDroga: r.texto_droga,
@@ -179,6 +185,7 @@ export const getPlanillaRelevamientoQuery = defineQuery({
           nombre: r.droga_nombre,
           clase: r.droga_clase as DrogaContexto["clase"],
           unidadBaseId: r.droga_unidad_base_id,
+          seDosificaEnUi: Boolean(r.droga_se_dosifica_en_ui),
         };
       }
 
@@ -241,6 +248,7 @@ export const getPlanillaRelevamientoQuery = defineQuery({
         drogaId: r.droga_id,
         drogaNombre: r.droga_nombre,
         drogaClase: r.droga_clase,
+        drogaSeDosificaEnUi: Boolean(r.droga_se_dosifica_en_ui),
         lote: r.lote,
         fechaVencimiento: r.fecha_vencimiento,
         cantidad: r.cantidad,
@@ -249,6 +257,7 @@ export const getPlanillaRelevamientoQuery = defineQuery({
         unidadSimbolo: r.unidad_simbolo,
         unidadBaseSimbolo,
         potenciaDeclarada: r.potencia_declarada,
+        actividadDeclarada: r.actividad_declarada,
         costoUnitario: r.costo_unitario,
         proveedorId: r.proveedor_id,
         proveedorRazonSocial: r.proveedor_razon_social,
@@ -285,6 +294,7 @@ export const getPlanillaRelevamientoQuery = defineQuery({
         costoUnitario: p.costo_unitario,
         sinCosto,
         potenciaDeclarada: p.potencia_declarada,
+        actividadDeclarada: p.actividad_declarada,
         fechaApertura: p.fecha_apertura,
         usada: p.usada,
         anulada,

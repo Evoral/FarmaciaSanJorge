@@ -12,6 +12,10 @@
  */
 import { getFichaParaImprimir } from "./get-ficha-para-imprimir";
 import { buildFichaTecnicaPdf } from "../infrastructure/ficha-pdf";
+import type { FichaParaImprimir } from "../infrastructure/ficha-repository";
+import type { LotePesadaImprimir, PesadaDeLineaImprimir, PesadaImprimir } from "../infrastructure/ficha-pdf";
+
+export type { LotePesadaImprimir, PesadaDeLineaImprimir, PesadaImprimir };
 
 export interface FichaTecnicaPdfResult {
   fichaId: string;
@@ -23,4 +27,9 @@ export async function imprimirFichaTecnicaPdf(id: string): Promise<FichaTecnicaP
   const ficha = await getFichaParaImprimir(id);
   const pdf = await buildFichaTecnicaPdf(ficha);
   return { fichaId: ficha.id, version: ficha.version, pdf };
+}
+
+/** Renders an already-authorized, already-loaded ficha with the preparación's lots (the toma workspace's print, modules/preparaciones). */
+export async function renderFichaTecnicaPdf(ficha: FichaParaImprimir, pesada: PesadaImprimir): Promise<FichaTecnicaPdfResult> {
+  return { fichaId: ficha.id, version: ficha.version, pdf: await buildFichaTecnicaPdf(ficha, pesada) };
 }

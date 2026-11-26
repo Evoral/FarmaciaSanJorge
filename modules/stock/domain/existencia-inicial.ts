@@ -18,6 +18,9 @@ export const DIAS_RELEVAMIENTO_INICIAL_MAX = 90;
 export const MENSAJE_RELEVAMIENTO_CERRADO =
   "El relevamiento inicial está cerrado: ya no se puede cargar existencia inicial. Una diferencia de stock se corrige con un ajuste por diferencia de arqueo.";
 
+export const MENSAJE_RELEVAMIENTO_UI_REQUERIDO =
+  "Para una droga que se dosifica en U.I. indicá Potencia (%) (ej. 100 para gramos) o U.I./g.";
+
 export interface EstadoRelevamientoInicial {
   abierto: boolean;
   /** When the DT closed it, `null` when it was not closed by the DT (still open, or past its plazo). */
@@ -55,6 +58,7 @@ export interface FilaPlanillaInput {
   cantidad?: string | null;
   unidadMedidaId?: string | null;
   potenciaDeclarada?: string | null;
+  actividadDeclarada?: string | null;
   costoUnitario?: string | null;
   proveedorId?: string | null;
   textoDroga?: string | null;
@@ -65,6 +69,7 @@ export interface DrogaContexto {
   nombre: string;
   clase: "DROGA" | "EXCIPIENTE" | "MATERIAL";
   unidadBaseId: string;
+  seDosificaEnUi?: boolean;
 }
 
 export interface PartidaExistenteContexto {
@@ -75,6 +80,7 @@ export interface PartidaExistenteContexto {
   origen: "COMPRA" | "EXISTENCIA_INICIAL" | "ELABORACION_PROPIA";
   fechaVencimiento: string | null;
   potenciaDeclarada: string | null;
+  actividadDeclarada?: string | null;
   costoUnitario: string | null;
 }
 
@@ -124,6 +130,17 @@ export function campoFaltanteFila(
   // Fecha de vencimiento is required for clase DROGA, optional for insumos (R3)
   if (droga && droga.clase === "DROGA" && (!fila.fechaVencimiento || fila.fechaVencimiento.trim() === "")) {
     return { campo: "vencimiento", motivo: "Falta la fecha de vencimiento" };
+  }
+  const tienePotencia = Boolean(fila.potenciaDeclarada && fila.potenciaDeclarada.trim() !== "");
+  const tieneActividad = Boolean(fila.actividadDeclarada && fila.actividadDeclarada.trim() !== "");
+  if (tienePotencia && tieneActividad) {
+    return { campo: "actividadDeclarada", motivo: "No puede tener pureza (%) y actividad (U.I./g) al mismo tiempo" };
+  }
+  if (droga && !droga.seDosificaEnUi && tieneActividad) {
+    return { campo: "actividadDeclarada", motivo: "Esta droga no se dosifica en U.I." };
+  }
+  if (droga && droga.seDosificaEnUi && !tienePotencia && !tieneActividad) {
+    return { campo: "actividadDeclarada", motivo: MENSAJE_RELEVAMIENTO_UI_REQUERIDO };
   }
 
   return null;
@@ -188,6 +205,18 @@ export function conflictosGrupo(
         }
       }
 
+      const fEsUi = Boolean(f.actividadDeclarada && f.actividadDeclarada.trim() !== "");
+      const pEsUi = Boolean(partidaExistente.actividadDeclarada && partidaExistente.actividadDeclarada.trim() !== "");
+      if (fEsUi !== pEsUi) {
+        const msg = pEsUi
+          ? "La partida en stock es en U.I. y la fila está cargada en gramos"
+          : "La partida en stock es en gramos y la fila está cargada en U.I.";
+        if (!conflictos.includes(msg)) conflictos.push(msg);
+      } else if (fEsUi && pEsUi && !dec(f.actividadDeclarada!).equals(dec(partidaExistente.actividadDeclarada!))) {
+        const msg = `La actividad (${f.actividadDeclarada} U.I./g) difiere de la partida en stock (${partidaExistente.actividadDeclarada} U.I./g)`;
+        if (!conflictos.includes(msg)) conflictos.push(msg);
+      }
+
       if (
         f.costoUnitario &&
         f.costoUnitario.trim() !== "" &&
@@ -227,6 +256,16 @@ export function conflictosGrupo(
           const msg = `Diferente potencia declarada en el mismo lote (${f1.potenciaDeclarada}% vs ${f2.potenciaDeclarada}%)`;
           if (!conflictos.includes(msg)) conflictos.push(msg);
         }
+      }
+
+      const f1EsUi = Boolean(f1.actividadDeclarada && f1.actividadDeclarada.trim() !== "");
+      const f2EsUi = Boolean(f2.actividadDeclarada && f2.actividadDeclarada.trim() !== "");
+      if (f1EsUi !== f2EsUi) {
+        const msg = "No se pueden mezclar filas en U.I. y en gramos para el mismo lote";
+        if (!conflictos.includes(msg)) conflictos.push(msg);
+      } else if (f1EsUi && f2EsUi && !dec(f1.actividadDeclarada!).equals(dec(f2.actividadDeclarada!))) {
+        const msg = `Diferente actividad en el mismo lote (${f1.actividadDeclarada} vs ${f2.actividadDeclarada} U.I./g)`;
+        if (!conflictos.includes(msg)) conflictos.push(msg);
       }
 
       if (

@@ -75,15 +75,17 @@ export interface DrogasDeReceta {
   materiales: string[];
   /** droga id -> its unidad base id, for every vigente droga: a % concentration is stored in it (migration 0112). */
   unidadesBase: ReadonlyMap<string, string>;
+  /** droga id -> nombre + seDosificaEnUi, for UI3 validation (migration 0133). */
+  drogasUi: ReadonlyMap<string, { nombre: string; seDosificaEnUi: boolean }>;
 }
 
 /** ONE read of the drogas a receta's componentes (and import aliases) reference: which are invalid, which are materiales, and which are principios activos. */
 export async function clasificarDrogasDeReceta(tx: Prisma.TransactionClient, tenantId: string, drogaIds: string[]): Promise<DrogasDeReceta> {
-  if (drogaIds.length === 0) return { invalidas: [], principiosActivos: new Set(), materiales: [], unidadesBase: new Map() };
+  if (drogaIds.length === 0) return { invalidas: [], principiosActivos: new Set(), materiales: [], unidadesBase: new Map(), drogasUi: new Map() };
   const unicos = Array.from(new Set(drogaIds));
   const vigentes = await tx.droga.findMany({
     where: { tenantId, id: { in: unicos }, fechaBaja: null },
-    select: { id: true, nombre: true, clase: true, unidadBaseId: true },
+    select: { id: true, nombre: true, clase: true, unidadBaseId: true, seDosificaEnUi: true },
   });
   const vigentesSet = new Set(vigentes.map((d) => d.id));
   return {
@@ -91,6 +93,7 @@ export async function clasificarDrogasDeReceta(tx: Prisma.TransactionClient, ten
     principiosActivos: new Set(vigentes.filter((d) => d.clase === "DROGA").map((d) => d.id)),
     materiales: vigentes.filter((d) => d.clase === "MATERIAL").map((d) => d.nombre),
     unidadesBase: new Map(vigentes.map((d) => [d.id, d.unidadBaseId])),
+    drogasUi: new Map(vigentes.map((d) => [d.id, { nombre: d.nombre, seDosificaEnUi: d.seDosificaEnUi }])),
   };
 }
 
@@ -144,6 +147,8 @@ export interface DrogaOpcion {
   nombre: string;
   unidadBaseId: string;
   unidadBaseSimbolo: string;
+  /** Migration 0133: true when the droga accepts U.I. in recetas. */
+  seDosificaEnUi: boolean;
   /** The synonym this option stands for, `null` for the droga's own name. */
   sinonimo: string | null;
   /** That synonym's id: picking the option stores it on the componente (migration 0069, the name the user chose). */
@@ -165,9 +170,9 @@ export async function listDrogasParaReceta(
 ): Promise<DrogaOpcion[]> {
   const like = busquedaDrogaLike(search);
   const texto = (search ?? "").trim().slice(0, 100);
-  const rows = await tx.$queryRaw<{ id: string; nombre: string; unidad_base_id: string; simbolo: string; sinonimo: string | null; sinonimo_id: string | null }[]>`
-    SELECT id, nombre, unidad_base_id, simbolo, sinonimo, sinonimo_id FROM (
-      SELECT d.id, d.nombre::text AS nombre, d.unidad_base_id, u.simbolo, NULL::text AS sinonimo, NULL::text AS sinonimo_id,
+  const rows = await tx.$queryRaw<{ id: string; nombre: string; unidad_base_id: string; simbolo: string; se_dosifica_en_ui: boolean; sinonimo: string | null; sinonimo_id: string | null }[]>`
+    SELECT id, nombre, unidad_base_id, simbolo, se_dosifica_en_ui, sinonimo, sinonimo_id FROM (
+      SELECT d.id, d.nombre::text AS nombre, d.unidad_base_id, u.simbolo, d.se_dosifica_en_ui, NULL::text AS sinonimo, NULL::text AS sinonimo_id,
         fsj.normalizar_nombre(d.nombre) = fsj.normalizar_nombre(${texto}::text) AS exacto
       FROM fsj.droga d
       JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
@@ -176,7 +181,7 @@ export async function listDrogasParaReceta(
         AND d.clase <> 'MATERIAL'
         AND ${like === null ? Prisma.sql`TRUE` : Prisma.sql`fsj.normalizar_nombre(d.nombre) LIKE ${patron(like)}`}
       UNION ALL
-      SELECT d.id, d.nombre::text, d.unidad_base_id, u.simbolo, da.texto::text, da.id::text,
+      SELECT d.id, d.nombre::text, d.unidad_base_id, u.simbolo, d.se_dosifica_en_ui, da.texto::text, da.id::text,
         fsj.normalizar_nombre(da.alias_normalizado) = fsj.normalizar_nombre(${texto}::text)
       FROM fsj.droga_alias da
       JOIN fsj.droga d ON d.id = da.droga_id AND d.tenant_id = da.tenant_id
@@ -190,7 +195,7 @@ export async function listDrogasParaReceta(
     ORDER BY t.exacto DESC, (t.sinonimo IS NOT NULL), t.nombre, t.sinonimo, t.id
     LIMIT ${limit}::int
   `;
-  return rows.map((r) => ({ id: r.id, nombre: r.nombre, unidadBaseId: r.unidad_base_id, unidadBaseSimbolo: r.simbolo, sinonimo: r.sinonimo, sinonimoId: r.sinonimo_id }));
+  return rows.map((r) => ({ id: r.id, nombre: r.nombre, unidadBaseId: r.unidad_base_id, unidadBaseSimbolo: r.simbolo, seDosificaEnUi: r.se_dosifica_en_ui, sinonimo: r.sinonimo, sinonimoId: r.sinonimo_id }));
 }
 
 /** A synonym a componente references (migration 0069), as the use cases validate it. Includes removed ones (`vigente: false`). */
@@ -474,6 +479,7 @@ export interface ComponenteDetalle {
   unidadReferenciaId: string | null;
   unidadReferenciaSimbolo: string | null;
   esPrincipioActivo: boolean;
+  seDosificaEnUi: boolean;
 }
 
 export interface ItemDetalle {
@@ -584,7 +590,7 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
           unidadTotal: { select: { simbolo: true } },
           componentes: {
             include: {
-              droga: { select: { nombre: true } },
+              droga: { select: { nombre: true, seDosificaEnUi: true } },
               drogaAlias: { select: { texto: true } },
               unidadMedida: { select: { simbolo: true } },
               unidadReferencia: { select: { simbolo: true } },
@@ -655,6 +661,7 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
           unidadReferenciaId: c.unidadReferenciaId,
           unidadReferenciaSimbolo: c.unidadReferencia?.simbolo ?? null,
           esPrincipioActivo: c.esPrincipioActivo,
+          seDosificaEnUi: c.droga.seDosificaEnUi,
           posicion: c.posicion,
         })),
       ),

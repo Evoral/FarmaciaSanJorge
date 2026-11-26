@@ -132,7 +132,10 @@ export function formatearVenceEtiqueta(fechaVencimiento: string | null, tipo: Ti
   return esTipoVencimientoEnDias(tipo) ? `Vence: ${dia}/${mes}/${anio!.slice(-2)}` : `Vence: ${mes}/${anio!.slice(-2)}`;
 }
 
-/** PENDING (DP-28): vía per forma, singular/plural. SOLUCION and SUSPENSION are ambiguous (oral or topical), so they have none. */
+/**
+ * PENDING (DP-28): vía per forma, singular/plural. SUSPENSION is ambiguous (oral or topical), so it has none. A solución
+ * is loaded as internal or external use (migration 0135): its vía line says which.
+ */
 const VIA_POR_FORMA: Readonly<Record<FormaFarmaceutica, readonly [singular: string, plural: string] | null>> = {
   CAPSULA: ["Oral", "Orales"],
   COMPRIMIDO: ["Oral", "Orales"],
@@ -144,7 +147,8 @@ const VIA_POR_FORMA: Readonly<Record<FormaFarmaceutica, readonly [singular: stri
   LOCION: ["Uso externo", "Uso externo"],
   OVULO: ["Vaginal", "Vaginales"],
   SUPOSITORIO: ["Rectal", "Rectales"],
-  SOLUCION: null,
+  SOLUCION_USO_INTERNO: ["Uso interno", "Uso interno"],
+  SOLUCION_USO_EXTERNO: ["Uso externo", "Uso externo"],
   SUSPENSION: null,
 };
 
@@ -298,7 +302,8 @@ const PLURAL_FORMA: Readonly<Record<FormaFarmaceutica, string>> = {
   GEL: "Geles",
   UNGUENTO: "Ungüentos",
   JARABE: "Jarabes",
-  SOLUCION: "Soluciones",
+  SOLUCION_USO_INTERNO: "Soluciones",
+  SOLUCION_USO_EXTERNO: "Soluciones",
   SUSPENSION: "Suspensiones",
   POLVO: "Polvos",
   OVULO: "Óvulos",
@@ -306,8 +311,14 @@ const PLURAL_FORMA: Readonly<Record<FormaFarmaceutica, string>> = {
   LOCION: "Lociones",
 };
 
+/** The etiqueta's singular where it differs from the app's label: the vía line already says the use (migration 0135). */
+const SINGULAR_FORMA_ETIQUETA: Readonly<Partial<Record<FormaFarmaceutica, string>>> = {
+  SOLUCION_USO_INTERNO: "Solución",
+  SOLUCION_USO_EXTERNO: "Solución",
+};
+
 export function formaSegunCantidad(forma: string, cantidad: number): string {
-  if (cantidad === 1) return FORMA_FARMACEUTICA_LABELS[forma as FormaFarmaceutica] ?? forma;
+  if (cantidad === 1) return SINGULAR_FORMA_ETIQUETA[forma as FormaFarmaceutica] ?? FORMA_FARMACEUTICA_LABELS[forma as FormaFarmaceutica] ?? forma;
   return PLURAL_FORMA[forma as FormaFarmaceutica] ?? forma;
 }
 

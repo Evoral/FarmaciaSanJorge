@@ -56,6 +56,8 @@ import { SimpleForm } from "@/shared/ui/simple-form";
 import { CostoPorUnidadField } from "./costo-por-unidad-field";
 import { CoFirmaDt } from "@/shared/ui/co-firma-dt";
 import { claveGrupo } from "../domain/existencia-inicial";
+import { parsearActividadOValor } from "../domain/partida";
+import { formatNumero } from "@/shared/format/cantidad";
 import type {
   ImportarPlanillaExcelResultado,
   CeldaNoReconocida,
@@ -71,6 +73,7 @@ export interface OpcionConMagnitud {
   label: string;
   tipoMagnitud: string;
   clase?: string;
+  seDosificaEnUi?: boolean;
   sinonimos?: readonly string[];
   simbolo?: string;
   factorABase?: string;
@@ -179,6 +182,7 @@ export function PlanillaExistenciaInicial({
           cantidad: localRow.cantidad,
           unidadMedidaId: localRow.unidadMedidaId,
           potenciaDeclarada: localRow.potenciaDeclarada,
+          actividadDeclarada: localRow.actividadDeclarada,
           costoUnitario: localRow.costoUnitario,
           proveedorId: localRow.proveedorId,
           textoDroga: localRow.textoDroga,
@@ -250,6 +254,7 @@ export function PlanillaExistenciaInicial({
       drogaId: null,
       drogaNombre: null,
       drogaClase: null,
+      drogaSeDosificaEnUi: false,
       lote: null,
       fechaVencimiento: null,
       cantidad: null,
@@ -258,6 +263,7 @@ export function PlanillaExistenciaInicial({
       unidadSimbolo: null,
       unidadBaseSimbolo: null,
       potenciaDeclarada: null,
+      actividadDeclarada: null,
       costoUnitario: null,
       proveedorId: null,
       proveedorRazonSocial: null,
@@ -368,6 +374,7 @@ export function PlanillaExistenciaInicial({
           cantidad: fila.cantidad || null,
           unidadMedidaId: fila.unidadMedidaId || null,
           potenciaDeclarada: fila.potenciaDeclarada || null,
+          actividadDeclarada: fila.actividadDeclarada || null,
           costoUnitario: fila.costoUnitario || null,
           proveedorId: fila.proveedorId || null,
           textoDroga: fila.textoDroga || null,
@@ -1179,6 +1186,13 @@ function FilaPlanillaItem({
     () => (fila.drogaId ? drogas.find((d) => d.id === fila.drogaId) : undefined),
     [fila.drogaId, drogas],
   );
+  const esDrogaUi = fila.drogaSeDosificaEnUi || drogaElegida?.seDosificaEnUi === true;
+  const [tipoIngreso, setTipoIngreso] = useState<"" | "GRAMOS" | "UI">(() =>
+    fila.actividadDeclarada ? "UI" : fila.potenciaDeclarada ? "GRAMOS" : "",
+  );
+  const [actividadTexto, setActividadTexto] = useState<string>(() =>
+    fila.actividadDeclarada ? numeroParaInput(fila.actividadDeclarada) : "",
+  );
 
   const unidadesFiltradas = useMemo(() => {
     if (!drogaElegida) return unidades;
@@ -1252,12 +1266,19 @@ function FilaPlanillaItem({
                   nuevaUnidadSimbolo = primera.simbolo ?? null;
                 }
               }
+              const cambioDroga = (opcion?.value ?? null) !== fila.drogaId;
+              if (cambioDroga) {
+                setTipoIngreso("");
+                setActividadTexto("");
+              }
               onUpdateFila({
                 drogaId: opcion?.value ?? null,
                 drogaNombre: opcion?.label ?? null,
                 drogaClase: d?.clase ?? null,
+                drogaSeDosificaEnUi: d?.seDosificaEnUi ?? false,
                 unidadMedidaId: nuevaUnidadId,
                 unidadSimbolo: nuevaUnidadSimbolo,
+                ...(cambioDroga ? { potenciaDeclarada: null, actividadDeclarada: null } : {}),
               });
               onGuardarFila(fila.id, formRef.current);
             }}
@@ -1346,21 +1367,90 @@ function FilaPlanillaItem({
         </div>
       </div>
 
-      {/* 6. Pureza */}
+      {/* 6. Pureza o U.I. */}
       <div className="flex flex-col gap-1 @3xl:contents">
         <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400 @3xl:hidden">
-          Pureza (%)
+          {esDrogaUi ? "Pureza (%) o U.I." : "Pureza (%)"}
         </label>
-        <NumeroInput
-          name="potenciaDeclarada"
-          value={fila.potenciaDeclarada ?? ""}
-          placeholder="%"
-          disabled={!puedeEditar}
-          onValueChange={(val) => onUpdateFila({ potenciaDeclarada: val || null })}
-          onBlur={triggerBlurSave}
-          onKeyDown={(e) => handleKeyDown(e, false)}
-          className="input input-sm font-mono text-right min-w-0 truncate"
-        />
+        {!esDrogaUi ? (
+          <NumeroInput
+            name="potenciaDeclarada"
+            value={fila.potenciaDeclarada ?? ""}
+            placeholder="%"
+            disabled={!puedeEditar}
+            onValueChange={(val) => onUpdateFila({ potenciaDeclarada: val || null, actividadDeclarada: null })}
+            onBlur={triggerBlurSave}
+            onKeyDown={(e) => handleKeyDown(e, false)}
+            className="input input-sm font-mono text-right min-w-0 truncate"
+          />
+        ) : (
+          <div className="flex flex-col gap-1 min-w-0">
+            <select
+              name="tipoIngreso"
+              aria-label="Cómo ingresa"
+              disabled={!puedeEditar}
+              value={tipoIngreso}
+              onChange={(e) => {
+                const next = e.target.value as "" | "GRAMOS" | "UI";
+                setTipoIngreso(next);
+                if (next === "GRAMOS") {
+                  setActividadTexto("");
+                  onUpdateFila({ actividadDeclarada: null });
+                  onGuardarFila(fila.id, formRef.current);
+                } else if (next === "UI") {
+                  onUpdateFila({ potenciaDeclarada: null });
+                  onGuardarFila(fila.id, formRef.current);
+                }
+              }}
+              className="input input-sm min-w-0"
+            >
+              <option value="">Elegir g / U.I.</option>
+              <option value="GRAMOS">En gramos (%)</option>
+              <option value="UI">En U.I.</option>
+            </select>
+            {tipoIngreso === "GRAMOS" ? (
+              <NumeroInput
+                name="potenciaDeclarada"
+                value={fila.potenciaDeclarada ?? ""}
+                placeholder="%"
+                disabled={!puedeEditar}
+                onValueChange={(val) => onUpdateFila({ potenciaDeclarada: val || null, actividadDeclarada: null })}
+                onBlur={triggerBlurSave}
+                onKeyDown={(e) => handleKeyDown(e, false)}
+                className="input input-sm font-mono text-right min-w-0 truncate"
+              />
+            ) : tipoIngreso === "UI" ? (
+              <>
+                <input
+                  name="actividadDeclarada"
+                  value={actividadTexto}
+                  placeholder="1000 U.I. cada 10 g"
+                  disabled={!puedeEditar}
+                  onChange={(e) => {
+                    const txt = e.target.value;
+                    setActividadTexto(txt);
+                    const parsed = txt.trim() ? parsearActividadOValor(txt) : null;
+                    onUpdateFila({
+                      potenciaDeclarada: null,
+                      actividadDeclarada: parsed && parsed.ok ? parsed.uiPorGramo.toString() : null,
+                    });
+                  }}
+                  onBlur={triggerBlurSave}
+                  onKeyDown={(e) => handleKeyDown(e, false)}
+                  className="input input-sm font-mono min-w-0 truncate"
+                />
+                {actividadTexto.trim() ? (() => {
+                  const parsed = parsearActividadOValor(actividadTexto);
+                  return (
+                    <span className="text-[11px] font-mono text-zinc-500 truncate">
+                      {parsed.ok ? `= ${formatNumero(parsed.uiPorGramo)} U.I./g` : parsed.mensaje}
+                    </span>
+                  );
+                })() : null}
+              </>
+            ) : null}
+          </div>
+        )}
       </div>
 
       {/* 7. Costo */}

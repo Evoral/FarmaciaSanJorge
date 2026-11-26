@@ -7,7 +7,7 @@
  */
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CircleOff, Tag } from "lucide-react";
+import { ArrowLeft, CircleOff, Tag, TriangleAlert } from "lucide-react";
 import { can } from "@/shared/auth/authorize";
 import { requireSession } from "@/shared/auth/session";
 import { DomainError, NotFoundError } from "@/shared/errors";
@@ -72,6 +72,15 @@ export default async function PreparacionPage({ params }: PreparacionPageProps) 
             </Link>
           }
         />
+
+        {pantalla.equivalenciaManualDrogas.length > 0 ? (
+          <div role="note" className="alert alert-warn mb-6">
+            <TriangleAlert aria-hidden />
+            <p>
+              Cantidad manual: sin lote con equivalencia U.I. en {pantalla.equivalenciaManualDrogas.join(", ")}. Revisar pesada manual.
+            </p>
+          </div>
+        ) : null}
 
         {pantalla.estado === "INICIADA" && pantalla.conReserva ? (
           // Confirmed (with its etiqueta) or released from the receta's toma workspace, where its ítems share ONE asiento (D8).

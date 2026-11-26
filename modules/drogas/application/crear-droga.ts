@@ -27,7 +27,17 @@ import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { record as auditRecord } from "@/shared/audit";
 import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { nonEmptyString, uuid } from "@/shared/validation";
-import { CLASES_DROGA, MENSAJE_INSUMO_CONTROLADO, TIPOS_CONTROL, claseValida, tipoControlValido, nonNegativeDecimalString } from "../domain/droga";
+import {
+  CLASES_DROGA,
+  MENSAJE_INSUMO_CONTROLADO,
+  MENSAJE_UI_REQUIERE_MASA,
+  MENSAJE_UI_SOLO_DROGA,
+  TIPOS_CONTROL,
+  claseValida,
+  seDosificaEnUiValida,
+  tipoControlValido,
+  nonNegativeDecimalString,
+} from "../domain/droga";
 import { normalizarTexto } from "../domain/normalizar";
 import { SINONIMO_MAX_LARGO, limpiarSinonimo, mensajeConflictoNombre } from "../domain/sinonimo";
 import { existeNombreVigente, insertDroga } from "../infrastructure/droga-repository";
@@ -44,6 +54,8 @@ const crearDrogaInput = z.object({
   stockMinimo: nonNegativeDecimalString,
   /** Migration 0120: the pesada always suggests a diluted lot of this droga. */
   sugerirDilucion: z.boolean().default(false),
+  /** Migration 0133: accepts U.I. in recetas and U.I./g partidas (only clase DROGA + MASA unidad base). */
+  seDosificaEnUi: z.boolean().default(false),
   sinonimos: z.array(z.string().max(SINONIMO_MAX_LARGO, `Como máximo ${SINONIMO_MAX_LARGO} caracteres.`)).max(20).default([]),
   /** Required only for a controlled droga with the contralor activo (R12); ignored otherwise. */
   saldoAperturaContralor: nonNegativeDecimalString.optional(),
@@ -61,6 +73,8 @@ export interface CrearDrogaInput {
   stockMinimo: string;
   /** "Sugerir lote diluido" (migration 0120); omitted = off. */
   sugerirDilucion?: boolean;
+  /** "Se dosifica en U.I." (migration 0133); omitted = off. */
+  seDosificaEnUi?: boolean;
   /** Other names of the droga, positional (entry `i` = form field `sinonimo-i`); blanks are skipped. */
   sinonimos?: string[];
   /** The manual libro contralor's saldo (unidad base): asked only for a controlled droga with the contralor activo. */
@@ -81,10 +95,19 @@ export const crearDrogaCommand = defineCommand({
       throw new ValidationError('El tipo de control debe ser "Ninguno" si y solo si la droga no es controlada.');
     }
     if (!claseValida(input.clase, input.tipoControl)) throw new ValidationError(MENSAJE_INSUMO_CONTROLADO, { fields: ["clase", "tipoControl"] });
+    if (!seDosificaEnUiValida(input.seDosificaEnUi, input.clase)) {
+      throw new ValidationError(MENSAJE_UI_SOLO_DROGA, { fields: ["seDosificaEnUi", "clase"] });
+    }
 
-    const unidad = await tx.unidadMedida.findUnique({ where: { id: input.unidadBaseId }, select: { id: true, nombre: true, simbolo: true, fechaBaja: true } });
+    const unidad = await tx.unidadMedida.findUnique({
+      where: { id: input.unidadBaseId },
+      select: { id: true, nombre: true, simbolo: true, tipoMagnitud: true, fechaBaja: true },
+    });
     if (!unidad) throw new NotFoundError("Unidad de medida no encontrada.");
     if (unidad.fechaBaja !== null) throw new DomainError("La unidad de medida elegida está dada de baja.");
+    if (input.seDosificaEnUi && unidad.tipoMagnitud !== "MASA") {
+      throw new ValidationError(MENSAJE_UI_REQUIERE_MASA, { fields: ["seDosificaEnUi", "unidadBaseId"] });
+    }
 
     // Accent/case-insensitive, against vigente drogas AND synonyms (openspec/specs/sinonimos-droga/spec.md): another
     // name for an existing substance is a synonym of that droga, never a second droga.
@@ -122,6 +145,7 @@ export const crearDrogaCommand = defineCommand({
       clase: input.clase,
       stockMinimo: input.stockMinimo.toString(),
       sugerirDilucion: input.sugerirDilucion,
+      seDosificaEnUi: input.seDosificaEnUi,
     });
 
     if (requiereApertura && input.saldoAperturaContralor !== undefined && input.tipoControl !== "NINGUNO") {
@@ -161,6 +185,7 @@ export const crearDrogaCommand = defineCommand({
           clase: input.clase,
           stockMinimo: input.stockMinimo.toString(),
           sugerirDilucion: input.sugerirDilucion,
+          seDosificaEnUi: input.seDosificaEnUi,
           ...(sinonimos.length > 0 ? { sinonimos: sinonimos.map((s) => s.texto) } : {}),
           ...(requiereApertura && input.saldoAperturaContralor !== undefined ? { saldoAperturaContralor: input.saldoAperturaContralor.toString() } : {}),
         },

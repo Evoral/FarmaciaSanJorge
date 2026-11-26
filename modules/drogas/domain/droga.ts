@@ -61,6 +61,15 @@ export function claseValida(clase: ClaseDroga, tipoControl: TipoControl): boolea
 
 export const MENSAJE_INSUMO_CONTROLADO = "Un excipiente o material no puede ser controlado: elegí la clase Droga o el tipo de control Ninguno.";
 
+/** Mirrors migration 0133's `droga_se_dosifica_en_ui_clase_check`: only a DROGA can be dosed in U.I. */
+export function seDosificaEnUiValida(seDosificaEnUi: boolean, clase: ClaseDroga): boolean {
+  return !seDosificaEnUi || clase === "DROGA";
+}
+
+export const MENSAJE_UI_SOLO_DROGA = "Solo una droga (no un excipiente ni material) puede dosificarse en U.I.";
+export const MENSAJE_UI_REQUIERE_MASA = "Para dosificar en U.I. la unidad base debe ser de masa (por ejemplo g o mg).";
+export const MENSAJE_UI_PARTIDAS_EN_STOCK = "No se puede quitar la dosificación en U.I. mientras haya partidas en U.I. con stock disponible.";
+
 /**
  * DP-12 (task's binding, conservative decision): once a droga has ANY
  * partida, its esControlada/tipoControl/unidadBaseId become immutable at

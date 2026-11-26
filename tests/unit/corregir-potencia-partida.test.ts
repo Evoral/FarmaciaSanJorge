@@ -7,12 +7,14 @@ const lockPartidaMock = vi.fn();
 const getPartidaParaAccionMock = vi.fn();
 const getReservadoEnPreparacionMock = vi.fn();
 const updatePotenciaPartidaMock = vi.fn();
+const updateActividadPartidaMock = vi.fn();
 
 vi.mock("@/modules/stock/infrastructure/partida-repository", () => ({
   lockPartidaParaAccion: (...args: unknown[]) => lockPartidaMock(...args),
   getPartidaParaAccion: (...args: unknown[]) => getPartidaParaAccionMock(...args),
   getReservadoEnPreparacion: (...args: unknown[]) => getReservadoEnPreparacionMock(...args),
   updatePotenciaPartida: (...args: unknown[]) => updatePotenciaPartidaMock(...args),
+  updateActividadPartida: (...args: unknown[]) => updateActividadPartidaMock(...args),
 }));
 
 vi.mock("@/shared/db/transaction", () => ({
@@ -141,10 +143,12 @@ describe("corregirPotenciaPartidaCommand handler execution", () => {
     getPartidaParaAccionMock.mockResolvedValue({
       id: VALID_ID,
       potenciaDeclarada: "95",
+      actividadDeclarada: null,
       cantidadReservada: "0",
     });
     getReservadoEnPreparacionMock.mockResolvedValue({ cantidad: "0", recetas: [] });
     updatePotenciaPartidaMock.mockResolvedValue(true);
+    updateActividadPartidaMock.mockResolvedValue(true);
   });
 
   it("locks, verifies no reservations, updates, and returns output", async () => {
@@ -164,7 +168,7 @@ describe("corregirPotenciaPartidaCommand handler execution", () => {
         potenciaNueva: "97.5",
       }),
     );
-    expect(res).toEqual({ id: VALID_ID, potenciaDeclarada: "97.5" });
+    expect(res).toEqual({ id: VALID_ID, potenciaDeclarada: "97.5", actividadDeclarada: null });
   });
 
   it("throws NotFoundError if the partida is not found or not locked", async () => {
@@ -197,5 +201,74 @@ describe("corregirPotenciaPartidaCommand handler execution", () => {
         { session: fakeSession() },
       ),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("corrects actividadDeclarada for a U.I. lot (accepts X U.I. cada Y g)", async () => {
+    getPartidaParaAccionMock.mockResolvedValueOnce({
+      id: VALID_ID,
+      potenciaDeclarada: null,
+      actividadDeclarada: "1000",
+      cantidadReservada: "0",
+    });
+
+    const res = await corregirPotenciaPartidaCommand.execute(
+      { id: VALID_ID, actividadDeclaradaNueva: "1000 U.I. cada 10 g", motivo: "Error de tipeo" },
+      { session: fakeSession() },
+    );
+
+    expect(updateActividadPartidaMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        id: VALID_ID,
+        actividadAnterior: "1000",
+        actividadNueva: "100",
+      }),
+    );
+    expect(res).toEqual({ id: VALID_ID, potenciaDeclarada: null, actividadDeclarada: "100" });
+  });
+
+  it("refuses switching a U.I. lot to grams (%) or a gram lot to U.I.", async () => {
+    getPartidaParaAccionMock.mockResolvedValueOnce({
+      id: VALID_ID,
+      potenciaDeclarada: null,
+      actividadDeclarada: "1000",
+      cantidadReservada: "0",
+    });
+    await expect(
+      corregirPotenciaPartidaCommand.execute(
+        { id: VALID_ID, potenciaDeclaradaNueva: "95", motivo: "Cambio" },
+        { session: fakeSession() },
+      ),
+    ).rejects.toBeInstanceOf(DomainError);
+
+    getPartidaParaAccionMock.mockResolvedValueOnce({
+      id: VALID_ID,
+      potenciaDeclarada: "95",
+      actividadDeclarada: null,
+      cantidadReservada: "0",
+    });
+    await expect(
+      corregirPotenciaPartidaCommand.execute(
+        { id: VALID_ID, actividadDeclaradaNueva: "100", motivo: "Cambio" },
+        { session: fakeSession() },
+      ),
+    ).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it("refuses correcting actividadDeclarada if the U.I. lot has active reservations", async () => {
+    getPartidaParaAccionMock.mockResolvedValueOnce({
+      id: VALID_ID,
+      potenciaDeclarada: null,
+      actividadDeclarada: "1000",
+      cantidadReservada: "0",
+    });
+    getReservadoEnPreparacionMock.mockResolvedValueOnce({ cantidad: "1", recetas: ["202"] });
+
+    await expect(
+      corregirPotenciaPartidaCommand.execute(
+        { id: VALID_ID, actividadDeclaradaNueva: "100", motivo: "Error de tipeo" },
+        { session: fakeSession() },
+      ),
+    ).rejects.toBeInstanceOf(DomainError);
   });
 });

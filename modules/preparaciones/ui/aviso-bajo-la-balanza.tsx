@@ -46,7 +46,11 @@ export function AvisoBajoLaBalanza({ linea, sugerencia = false, elegidas, onUsar
           {diluidas.map((p) => (
             <button key={p.id} type="button" onClick={() => onUsar(p.id)} className="btn btn-secondary btn-sm">
               Usar lote {p.lote}
-              {p.potenciaDeclarada !== null ? ` (${formatNumero(p.potenciaDeclarada, 6)} %)` : ""}
+              {p.actividadDeclarada != null
+                ? ` (${formatNumero(p.actividadDeclarada, 6)} U.I./g)`
+                : p.potenciaDeclarada !== null
+                  ? ` (${formatNumero(p.potenciaDeclarada, 6)} %)`
+                  : ""}
             </button>
           ))}
           {puedeElaborar ? (

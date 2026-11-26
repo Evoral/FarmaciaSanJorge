@@ -109,6 +109,7 @@ export interface AliasDroga {
 export interface DrogaCandidata {
   id: string;
   nombre: string;
+  seDosificaEnUi?: boolean;
 }
 
 export type ViaMatchDroga = "ALIAS" | "NOMBRE";
@@ -151,10 +152,22 @@ export interface UnidadCandidata {
   simbolo: string;
 }
 
-/** "mg" -> the unidad whose simbolo (or codigo) normalizes to "mg". */
+/** Unit symbol variants mapped to canonical `unidad_medida.codigo` (case-insensitive via `normalizarTexto`). */
+const ALIAS_UNIDADES: Readonly<Record<string, string>> = {
+  ui: "UNIDAD_INTERNACIONAL",
+  "u.i.": "UNIDAD_INTERNACIONAL",
+  "ui.": "UNIDAD_INTERNACIONAL",
+};
+
+/** "mg" -> the unidad whose simbolo (or codigo) normalizes to "mg", plus explicit symbol aliases like UI/U.I./UI. -> UNIDAD_INTERNACIONAL. */
 export function resolverUnidad(texto: string, unidades: readonly UnidadCandidata[]): UnidadCandidata | null {
   const buscado = normalizarTexto(texto);
   if (buscado.length === 0) return null;
+  const aliasCodigo = ALIAS_UNIDADES[buscado];
+  if (aliasCodigo) {
+    const porAlias = unidades.find((u) => u.codigo === aliasCodigo);
+    if (porAlias) return porAlias;
+  }
   return unidades.find((u) => normalizarTexto(u.simbolo) === buscado) ?? unidades.find((u) => normalizarTexto(u.codigo) === buscado) ?? null;
 }
 
@@ -297,6 +310,7 @@ export interface ComponenteVistaPrevia {
   drogaAliasId: string | null;
   sinonimo: string | null;
   unidadMedidaId: string | null;
+  seDosificaEnUi?: boolean;
 }
 
 export interface VistaPreviaImportacion {

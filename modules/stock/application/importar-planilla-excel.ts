@@ -16,7 +16,11 @@ import { validarArchivoXlsx } from "@/shared/xlsx/validar-archivo-xlsx";
 import { leerLibroXlsx } from "@/shared/xlsx/leer-xlsx.server";
 import type { CeldaCruda } from "@/shared/xlsx/libro-hojas";
 import { fechaFinDeMes } from "@/shared/time/vencimiento-lote";
-import { MENSAJE_RELEVAMIENTO_CERRADO } from "../domain/existencia-inicial";
+import {
+  MENSAJE_RELEVAMIENTO_CERRADO,
+  MENSAJE_RELEVAMIENTO_UI_REQUERIDO,
+} from "../domain/existencia-inicial";
+import { parsearActividadOValor } from "../domain/partida";
 import {
   lockTenantRelevamientoCompartido,
   relevamientoInicialAbierto,
@@ -32,7 +36,7 @@ const MAX_FILAS_IMPORTACION = 1000;
 
 export interface CeldaNoReconocida {
   fila: number;
-  columna: "Droga" | "Lote" | "Vencimiento" | "Cantidad" | "Unidad" | "Potencia" | "Costo" | "Proveedor";
+  columna: "Droga" | "Lote" | "Vencimiento" | "Cantidad" | "Unidad" | "Potencia" | "U.I./g" | "Costo" | "Proveedor";
   valor: string;
   motivo: string;
 }
@@ -145,6 +149,7 @@ export const importarPlanillaExcelCommand = defineCommand({
     let colCantidad = -1;
     let colUnidad = -1;
     let colPotencia = -1;
+    let colActividad = -1;
     let colCosto = -1;
     let colProveedor = -1;
 
@@ -173,6 +178,14 @@ export const importarPlanillaExcelCommand = defineCommand({
         norm === "pureza (%)"
       ) {
         colPotencia = c;
+      } else if (
+        norm === "u.i./g" ||
+        norm === "ui/g" ||
+        norm === "actividad" ||
+        norm === "actividad (u.i./g)" ||
+        norm === "actividad declarada"
+      ) {
+        colActividad = c;
       } else if (norm === "costo" || norm === "costo unitario" || norm === "precio") {
         colCosto = c;
       } else if (norm === "proveedor" || norm === "razon social") {
@@ -412,6 +425,63 @@ export const importarPlanillaExcelCommand = defineCommand({
         }
       }
 
+      // 6b. Actividad (U.I./g)
+      const rawActividad = colActividad >= 0 ? celdas[colActividad] : null;
+      let actividadDeclarada: Decimal | null = null;
+      if (rawActividad !== null && rawActividad !== undefined) {
+        const textoActividad =
+          typeof rawActividad === "number"
+            ? Number.isFinite(rawActividad)
+              ? String(rawActividad)
+              : ""
+            : typeof rawActividad === "string"
+              ? rawActividad.trim()
+              : "";
+        if (textoActividad !== "") {
+          const parsed = parsearActividadOValor(textoActividad);
+          if (!parsed.ok) {
+            noReconocidos.push({
+              fila: filaExcel,
+              columna: "U.I./g",
+              valor: textoActividad,
+              motivo: parsed.mensaje,
+            });
+          } else if (potenciaDeclarada !== null) {
+            noReconocidos.push({
+              fila: filaExcel,
+              columna: "U.I./g",
+              valor: textoActividad,
+              motivo: "No puede tener Potencia y U.I./g al mismo tiempo",
+            });
+          } else if (drogaMatch && !drogaMatch.seDosificaEnUi) {
+            noReconocidos.push({
+              fila: filaExcel,
+              columna: "U.I./g",
+              valor: textoActividad,
+              motivo: "Esta droga no se dosifica en U.I.",
+            });
+          } else {
+            actividadDeclarada = parsed.uiPorGramo;
+          }
+        } else if (typeof rawActividad !== "string") {
+          noReconocidos.push({
+            fila: filaExcel,
+            columna: "U.I./g",
+            valor: String(rawActividad),
+            motivo: "Actividad inválida",
+          });
+        }
+      }
+
+      if (drogaMatch && drogaMatch.seDosificaEnUi && potenciaDeclarada === null && actividadDeclarada === null) {
+        noReconocidos.push({
+          fila: filaExcel,
+          columna: "U.I./g",
+          valor: "",
+          motivo: MENSAJE_RELEVAMIENTO_UI_REQUERIDO,
+        });
+      }
+
       // 7. Costo
       const rawCosto = colCosto >= 0 ? celdas[colCosto] : null;
       let costoUnitario: Decimal | null = null;
@@ -487,6 +557,7 @@ export const importarPlanillaExcelCommand = defineCommand({
         cantidad,
         unidadMedidaId,
         potenciaDeclarada,
+        actividadDeclarada,
         costoUnitario,
         proveedorId,
         textoDroga,

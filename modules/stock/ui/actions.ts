@@ -112,14 +112,15 @@ export async function corregirCostoPartidaAction(_prevState: StockActionState, f
 export async function corregirPotenciaPartidaAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
   const id = String(formData.get("id") ?? "");
   try {
-    await corregirPotenciaPartida({
+    const res = await corregirPotenciaPartida({
       id,
       potenciaDeclaradaNueva: opcional(formData, "potenciaDeclaradaNueva"),
+      actividadDeclaradaNueva: opcional(formData, "actividadDeclaradaNueva"),
       motivo: String(formData.get("motivo") ?? ""),
     });
     revalidatePath("/stock");
     revalidatePath(`/partidas/${id}`);
-    return { status: "success", message: "Pureza corregida." };
+    return { status: "success", message: res.actividadDeclarada !== null ? "Actividad corregida." : "Pureza corregida." };
   } catch (error) {
     return fromError(error, "No se pudo corregir la pureza.");
   }

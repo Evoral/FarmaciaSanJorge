@@ -46,6 +46,8 @@ export interface ConsumoElaboracion {
   costoUnitario: Decimal | string;
   /** `partida.potencia_declarada` (percent), `null` = 100. */
   potenciaDeclarada: Decimal | string | null;
+  /** `partida.actividad_declarada` (U.I./g), `null` for gram lots (migration 0133). */
+  actividadDeclarada?: Decimal | string | null;
   /** The vencimiento VIGENTE, `YYYY-MM-DD`; `null` = does not expire. */
   fechaVencimiento: string | null;
   /** The consumed droga's clase: only a `DROGA` (an active drug) sets the lot's vencimiento (EL5). */
@@ -65,8 +67,10 @@ export interface ElaboracionInput {
 }
 
 export interface LoteElaborado {
-  /** The produced partida's `potencia_declarada`: computed for a DILUCION, `null` for a FORMULA lot. */
+  /** The produced partida's `potencia_declarada`: computed for a gram DILUCION, `null` for a U.I. DILUCION or a FORMULA lot. */
   potenciaDeclarada: Decimal | null;
+  /** The produced partida's `actividad_declarada` (U.I./g): computed for a U.I. DILUCION, `null` otherwise. */
+  actividadDeclarada: Decimal | null;
   /** The produced partida's `costo_unitario`, per the produced droga's unidad base. */
   costoUnitario: Decimal;
   /** The produced partida's `fecha_vencimiento`. */
@@ -105,12 +109,32 @@ export function codigoLoteElaborado(tipo: TipoElaboracion, yaUsados: number): st
 /** The longest name and aspecto the etiqueta takes (migration 0115). */
 export const NOMBRE_LOTE_MAX = 120;
 
+/** Active U.I. (in `drogaUnidadBase * U.I./g`) of `drogaId` the consumos carry. */
+export function actividadConsumida(consumos: readonly ConsumoElaboracion[], drogaId: string): Decimal {
+  return consumos
+    .filter((c) => c.drogaId === drogaId && c.actividadDeclarada != null)
+    .reduce((total, c) => total.plus(dec(c.cantidad).times(dec(c.actividadDeclarada!))), dec(0));
+}
+
+/** A U.I. dilución's actividad (U.I./g): `sum(actividad_origen * masa_origen) / masa_total`, rounded down. */
+export function actividadDeDilucion(consumos: readonly ConsumoElaboracion[], drogaId: string, cantidadProducida: Decimal | string): Decimal {
+  return actividadConsumida(consumos, drogaId).dividedBy(dec(cantidadProducida)).toDecimalPlaces(DECIMALES_POTENCIA, Decimal.ROUND_DOWN);
+}
+
 /**
  * The name the lot's etiqueta suggests (the user edits it): a dilución reads as its proportion, "Clonazepam 1:100" for
  * 1 %, when 100 / potencia is a whole number (within 0.5 %); otherwise its percentage to 3 significant digits
- * ("45,5 %", "0,455 %": the exact potencia is the partida's, not the name's). A fórmula lot, its droga.
+ * ("45,5 %", "0,455 %": the exact potencia is the partida's, not the name's). A U.I. dilución shows its U.I./g.
+ * A fórmula lot, its droga.
  */
-export function nombreSugeridoLote(drogaNombre: string, potenciaDilucion: Decimal | null): string {
+export function nombreSugeridoLote(
+  drogaNombre: string,
+  potenciaDilucion: Decimal | null,
+  actividadDilucion: Decimal | null = null,
+): string {
+  if (actividadDilucion !== null && actividadDilucion.greaterThan(0)) {
+    return `${drogaNombre} ${formatNumero(actividadDilucion.toSignificantDigits(3))} U.I./g`;
+  }
   if (potenciaDilucion === null || !potenciaDilucion.greaterThan(0)) return drogaNombre;
   const proporcion = dec(100).dividedBy(potenciaDilucion);
   const entera = proporcion.toDecimalPlaces(0);
@@ -194,18 +218,38 @@ export function validarElaboracion(input: ElaboracionInput): LoteElaborado {
     }
   }
 
-  const consumeSuDroga = input.consumos.some((c) => c.drogaId === input.drogaProducidaId);
+  const consumosDroga = input.consumos.filter((c) => c.drogaId === input.drogaProducidaId);
+  const consumeSuDroga = consumosDroga.length > 0;
   let potenciaDeclarada: Decimal | null = null;
+  let actividadDeclarada: Decimal | null = null;
   if (input.tipo === "DILUCION") {
     if (!consumeSuDroga) {
       throw new DomainError("Una dilución tiene que consumir un lote de la droga que se diluye.", { fields: ["componentes"] });
     }
-    potenciaDeclarada = potenciaDeDilucion(input.consumos, input.drogaProducidaId, cantidadProducida);
-    if (!potenciaDeclarada.greaterThan(0)) {
-      throw new DomainError("La dilución queda con una potencia demasiado baja para registrarla: revisá las cantidades.", { fields: ["cantidadProducida"] });
+    const hayUi = consumosDroga.some((c) => c.actividadDeclarada != null);
+    const hayGramos = consumosDroga.some((c) => c.actividadDeclarada == null);
+    if (hayUi && hayGramos) {
+      throw new DomainError("No se pueden mezclar lotes en U.I. y lotes en gramos de la misma droga en una dilución.", { fields: ["componentes"] });
     }
-    if (potenciaDeclarada.greaterThan(CIEN)) {
-      throw new DomainError("La cantidad producida es menor que el principio activo consumido: revisá las cantidades.", { fields: ["cantidadProducida"] });
+    if (hayUi) {
+      actividadDeclarada = actividadDeDilucion(input.consumos, input.drogaProducidaId, cantidadProducida);
+      if (!actividadDeclarada.greaterThan(0)) {
+        throw new DomainError("La dilución queda con una actividad demasiado baja para registrarla: revisá las cantidades.", {
+          fields: ["cantidadProducida"],
+        });
+      }
+    } else {
+      potenciaDeclarada = potenciaDeDilucion(input.consumos, input.drogaProducidaId, cantidadProducida);
+      if (!potenciaDeclarada.greaterThan(0)) {
+        throw new DomainError("La dilución queda con una potencia demasiado baja para registrarla: revisá las cantidades.", {
+          fields: ["cantidadProducida"],
+        });
+      }
+      if (potenciaDeclarada.greaterThan(CIEN)) {
+        throw new DomainError("La cantidad producida es menor que el principio activo consumido: revisá las cantidades.", {
+          fields: ["cantidadProducida"],
+        });
+      }
     }
   } else if (consumeSuDroga) {
     throw new DomainError("Un lote elaborado no puede consumir la misma droga que produce.", { fields: ["componentes"] });
@@ -217,5 +261,5 @@ export function validarElaboracion(input: ElaboracionInput): LoteElaborado {
     throw new DomainError("El lote toma el vencimiento de la droga activa que consume: indicá al menos un lote de una droga.", { fields: ["componentes"] });
   }
 
-  return { potenciaDeclarada, costoUnitario: costoUnitarioDeLote(input.consumos, cantidadProducida), fechaVencimiento };
+  return { potenciaDeclarada, actividadDeclarada, costoUnitario: costoUnitarioDeLote(input.consumos, cantidadProducida), fechaVencimiento };
 }

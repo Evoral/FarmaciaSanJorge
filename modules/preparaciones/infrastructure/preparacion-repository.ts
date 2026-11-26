@@ -308,6 +308,8 @@ export interface LineaParaPantalla {
   orden: number;
   /** Migration 0120 (`droga.sugerir_dilucion`): the pesada suggests a diluted lot even above the balance. Absent = no. */
   sugerirDilucion?: boolean;
+  /** Migration 0133 (`droga.se_dosifica_en_ui`): allows U.I. lines/lots and manual-equivalence fallback. */
+  seDosificaEnUi?: boolean;
 }
 
 export async function getLineasParaPreparacion(tx: Prisma.TransactionClient, tenantId: string, fichaTecnicaId: string): Promise<LineaParaPantalla[]> {
@@ -323,7 +325,7 @@ export async function getLineasParaPreparacion(tx: Prisma.TransactionClient, ten
       esEnraseManual: true,
       orden: true,
       unidadMedida: { select: { simbolo: true, factorABase: true, tipoMagnitud: true } },
-      droga: { select: { sugerirDilucion: true, unidadBase: { select: { id: true, simbolo: true, factorABase: true, tipoMagnitud: true } } } },
+      droga: { select: { sugerirDilucion: true, seDosificaEnUi: true, unidadBase: { select: { id: true, simbolo: true, factorABase: true, tipoMagnitud: true } } } },
     },
   });
   return rows.map((r) => {
@@ -346,8 +348,9 @@ export async function getLineasParaPreparacion(tx: Prisma.TransactionClient, ten
       cantidadPrescripta: null,
       orden: r.orden,
       sugerirDilucion: r.droga.sugerirDilucion,
+      seDosificaEnUi: r.droga.seDosificaEnUi,
     };
-    if (r.esEnraseManual || mismaMagnitud(linea.unidad, unidadStock)) return linea;
+    if (r.esEnraseManual || linea.unidad.tipoMagnitud === "ACTIVIDAD" || mismaMagnitud(linea.unidad, unidadStock)) return linea;
     // Weighed on the balance: the typed quantity is physical, in the stock unit -- what is reserved, descontado and
     // recorded in the libro's detalle (the fórmula keeps the prescription).
     return {
@@ -403,6 +406,8 @@ export interface PartidaElegible {
   fechaApertura: string | null; // ISO instant
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
+  /** Migration 0133: declared activity (U.I./g), `null` for gram lots. */
+  actividadDeclarada?: string | null;
   /** Migration 0111: elaborated in the farmacia as a dilución of the droga (P13 offers it for a dose below the balance). */
   esDilucion: boolean;
   /** Migration 0115: the name the farmacéutico gave an elaborated lot ("Clonazepam 1:100"); `null` for a bought one. */
@@ -450,6 +455,7 @@ export async function listPartidasElegiblesDroga(
       reanalizada: boolean;
       fecha_apertura: string | null;
       potencia_declarada: string | null;
+      actividad_declarada: string | null;
       es_dilucion: boolean;
       nombre_elaborado: string | null;
       elaborada: boolean;
@@ -458,7 +464,7 @@ export async function listPartidasElegiblesDroga(
     SELECT p.id, p.lote, coalesce(pr.razon_social, CASE WHEN p.origen = 'ELABORACION_PROPIA' THEN ${ETIQUETA_ELABORADO_EN_FARMACIA} ELSE ${ETIQUETA_SIN_PROVEEDOR} END) AS proveedor_nombre, (p.cantidad_disponible - r.reservado)::text AS cantidad_disponible,
       u.simbolo AS unidad_simbolo, p.fecha_vencimiento_vigente::text AS fecha_vencimiento,
       p.fecha_vencimiento_vigente IS DISTINCT FROM p.fecha_vencimiento AS reanalizada,
-      p.fecha_apertura::text, p.potencia_declarada::text,
+      p.fecha_apertura::text, p.potencia_declarada::text, p.actividad_declarada::text,
       coalesce(el.tipo = 'DILUCION', false) AS es_dilucion, el.nombre AS nombre_elaborado,
       p.origen = 'ELABORACION_PROPIA' AS elaborada
     FROM fsj.partida p
@@ -480,6 +486,7 @@ export async function listPartidasElegiblesDroga(
     reanalizada: r.reanalizada,
     fechaApertura: r.fecha_apertura,
     potenciaDeclarada: r.potencia_declarada,
+    actividadDeclarada: r.actividad_declarada,
     esDilucion: r.es_dilucion,
     nombreElaborado: r.nombre_elaborado,
     elaborada: r.elaborada,
@@ -562,6 +569,8 @@ export interface PartidaFresca {
   fechaApertura: string | null;
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
+  /** Migration 0133: declared activity (U.I./g), `null` for gram lots. */
+  actividadDeclarada?: string | null;
   /** Origen ELABORACION_PROPIA (a dilución or a fórmula lot): outside INV-S18. */
   elaborada: boolean;
 }
@@ -588,11 +597,13 @@ export async function getPartidasFrescas(
       fecha_vencimiento: string | null;
       fecha_apertura: string | null;
       potencia_declarada: string | null;
+      actividad_declarada: string | null;
       elaborada: boolean;
     }[]
   >`
     SELECT p.id, p.droga_id, p.lote, greatest(p.cantidad_disponible - r.reservado, 0)::text AS cantidad_disponible,
       p.fecha_vencimiento_vigente::text AS fecha_vencimiento, p.fecha_apertura::text, p.potencia_declarada::text,
+      p.actividad_declarada::text,
       p.origen = 'ELABORACION_PROPIA' AS elaborada
     FROM fsj.partida p
     ${reservadoPorOtrasSql(preparacionPropiaId)}
@@ -606,6 +617,7 @@ export async function getPartidasFrescas(
     fechaVencimiento: r.fecha_vencimiento,
     fechaApertura: r.fecha_apertura,
     potenciaDeclarada: r.potencia_declarada,
+    actividadDeclarada: r.actividad_declarada,
     elaborada: r.elaborada,
   }));
 }
@@ -619,8 +631,12 @@ export interface NuevoEgresoInput {
   lineaPesajeId: string | null;
   registradoPorId: string;
   desvioPropuesta: boolean;
-  /** Migration 0058: purity snapshot (percent) used for this consumption; `null` for manual-enrase lines (no correction). */
+  /** Migration 0058: purity snapshot (percent) used for this consumption; `null` for manual lines or U.I. lots. */
   potenciaAplicada: string | null;
+  /** Migration 0133: activity snapshot (U.I./g) used for this consumption; `null` for gram lots or manual lines. */
+  actividadAplicada?: string | null;
+  /** Migration 0133: true when weighed manually due to missing U.I.<->mass equivalence. */
+  equivalenciaManual?: boolean;
 }
 
 export async function insertEgresoPreparacion(tx: Prisma.TransactionClient, input: NuevoEgresoInput): Promise<{ id: string }> {
@@ -635,6 +651,8 @@ export async function insertEgresoPreparacion(tx: Prisma.TransactionClient, inpu
       registradoPorId: input.registradoPorId,
       desvioPropuesta: input.desvioPropuesta,
       potenciaAplicada: input.potenciaAplicada,
+      actividadAplicada: input.actividadAplicada ?? null,
+      equivalenciaManual: input.equivalenciaManual ?? false,
     },
     select: { id: true },
   });
@@ -650,10 +668,12 @@ export interface ReservaDePreparacion {
   partidaId: string;
   /** Physical, in the droga's unidad base (a stock quantity): what the split takes from this partida; "0" = chosen but not needed by the split. */
   cantidad: string;
-  /** Enrase manual: the quantity the user typed, in the LÍNEA's unit (the form's), converted at planning. */
+  /** Enrase manual or equivalenciaManual: the quantity the user typed, in the LÍNEA's unit (or unidadStock for equivalenciaManual), converted at planning. */
   cantidadManual: string | null;
+  /** Migration 0133: true when a non-enrase-manual línea is weighed manually (reusing cantidadManual) because no convertible partida exists. */
+  equivalenciaManual?: boolean;
   motivoAperturaAdicional: string | null;
-  /** Non-manual línea weighed for real (migration 0088): the physical quantity in the LÍNEA's unit. */
+  /** Non-manual línea weighed for real (migration 0088): the physical quantity in the LÍNEA's unit (or unidadStock for ACTIVIDAD). */
   cantidadReal: string | null;
   /** The DT who co-signed `cantidadReal` outside the tolerance (migration 0088). */
   pesadaAutorizadaPorId: string | null;
@@ -671,6 +691,7 @@ export async function insertReservas(
       partidaId: r.partidaId,
       cantidad: r.cantidad,
       cantidadManual: r.cantidadManual,
+      equivalenciaManual: r.equivalenciaManual ?? false,
       motivoAperturaAdicional: r.motivoAperturaAdicional,
       cantidadReal: r.cantidadReal,
       pesadaAutorizadaPorId: r.pesadaAutorizadaPorId,
@@ -687,17 +708,50 @@ export async function listReservasDePreparacion(tx: Prisma.TransactionClient, te
   const rows = await tx.reservaStock.findMany({
     where: { tenantId, preparacionId, lineaPesajeId: { not: null } },
     orderBy: [{ lineaPesajeId: "asc" }, { partidaId: "asc" }],
-    select: { lineaPesajeId: true, partidaId: true, cantidad: true, cantidadManual: true, motivoAperturaAdicional: true, cantidadReal: true, pesadaAutorizadaPorId: true },
+    select: { lineaPesajeId: true, partidaId: true, cantidad: true, cantidadManual: true, equivalenciaManual: true, motivoAperturaAdicional: true, cantidadReal: true, pesadaAutorizadaPorId: true },
   });
   return rows.map((r) => ({
     lineaPesajeId: r.lineaPesajeId!,
     partidaId: r.partidaId,
     cantidad: r.cantidad.toString(),
     cantidadManual: r.cantidadManual ? r.cantidadManual.toString() : null,
+    equivalenciaManual: r.equivalenciaManual,
     motivoAperturaAdicional: r.motivoAperturaAdicional,
     cantidadReal: r.cantidadReal ? r.cantidadReal.toString() : null,
     pesadaAutorizadaPorId: r.pesadaAutorizadaPorId,
   }));
+}
+
+/** Distinct droga names weighed with `equivalencia_manual = true` in a preparación's reservas or egresos. */
+export async function listDrogasEquivalenciaManualDePreparacion(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  preparacionId: string,
+  estado: string,
+): Promise<string[]> {
+  if (estado === "INICIADA") {
+    const rows = await tx.$queryRaw<{ droga_nombre: string }[]>`
+      SELECT DISTINCT coalesce(l.droga_nombre, d.nombre::text) AS droga_nombre
+      FROM fsj.reserva_stock rs
+      LEFT JOIN fsj.linea_pesaje l ON l.tenant_id = rs.tenant_id AND l.id = rs.linea_pesaje_id
+      JOIN fsj.partida p ON p.tenant_id = rs.tenant_id AND p.id = rs.partida_id
+      JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
+      WHERE rs.tenant_id = ${tenantId}::uuid AND rs.preparacion_id = ${preparacionId}::uuid AND rs.equivalencia_manual = true
+      ORDER BY droga_nombre ASC
+    `;
+    return rows.map((r) => r.droga_nombre);
+  }
+  const rows = await tx.$queryRaw<{ droga_nombre: string }[]>`
+    SELECT DISTINCT coalesce(l.droga_nombre, d.nombre::text) AS droga_nombre
+    FROM fsj.movimiento_stock m
+    LEFT JOIN fsj.linea_pesaje l ON l.tenant_id = m.tenant_id AND l.id = m.linea_pesaje_id
+    JOIN fsj.partida p ON p.tenant_id = m.tenant_id AND p.id = m.partida_id
+    JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
+    WHERE m.tenant_id = ${tenantId}::uuid AND m.preparacion_id = ${preparacionId}::uuid
+      AND m.tipo = 'EGRESO_PREPARACION' AND m.equivalencia_manual = true
+    ORDER BY droga_nombre ASC
+  `;
+  return rows.map((r) => r.droga_nombre);
 }
 
 /**
@@ -2098,6 +2152,8 @@ export interface ReservaDeItemToma {
   unidadSimbolo: string;
   /** The partida's vencimiento VIGENTE (migration 0074), YYYY-MM-DD; `null` = does not expire. */
   fechaVencimiento: string | null;
+  /** Migration 0133: true when weighed manually due to missing U.I.<->mass equivalence. */
+  equivalenciaManual?: boolean;
 }
 
 export interface PreparacionDeItemToma {
@@ -2247,11 +2303,13 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
             cantidad: string;
             simbolo: string;
             fecha_vencimiento: string | null;
+            equivalencia_manual: boolean;
             alcanza: boolean;
           }[]
         >`
           SELECT rs.preparacion_id, rs.partida_id, coalesce(l.droga_nombre, d.nombre::text) AS droga_nombre, p.lote, rs.cantidad::text AS cantidad, u.simbolo,
             p.fecha_vencimiento_vigente::text AS fecha_vencimiento,
+            rs.equivalencia_manual,
             (rs.cantidad <= p.cantidad_disponible - (
                SELECT coalesce(sum(o.cantidad), 0)
                FROM fsj.reserva_stock o
@@ -2286,6 +2344,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
         cantidad: r.cantidad,
         unidadSimbolo: r.simbolo,
         fechaVencimiento: r.fecha_vencimiento,
+        equivalenciaManual: r.equivalencia_manual,
       })),
       reservaAlcanza: propias.every((r) => r.alcanza),
       excipiente: textoExcipienteUsado(elegida, receta.items.find((i) => i.id === itemId) ?? null, drogasExcipiente),
@@ -2809,4 +2868,53 @@ export async function listInsumosDePreparacion(tx: Prisma.TransactionClient, ten
       ? [{ tipo: r.tipo, drogaId: r.drogaId, drogaNombre: droga.nombre, clase: droga.clase, cantidad: r.cantidad.toString(), unidadSimbolo: droga.unidadBase.simbolo, texto: r.texto }]
       : [];
   });
+}
+
+/** The ficha's live preparación (CONFIRMADA first, else INICIADA) for the toma workspace's print; `null` when there is none. */
+export async function getPreparacionVivaDeFicha(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  fichaTecnicaId: string,
+): Promise<{ id: string; estado: "INICIADA" | "CONFIRMADA" } | null> {
+  const rows = await tx.preparacion.findMany({
+    where: { tenantId, fichaTecnicaId, estado: { in: ["INICIADA", "CONFIRMADA"] } },
+    select: { id: true, estado: true },
+  });
+  const viva = rows.find((r) => r.estado === "CONFIRMADA") ?? rows[0];
+  return viva ? { id: viva.id, estado: viva.estado as "INICIADA" | "CONFIRMADA" } : null;
+}
+
+/** A confirmed preparación's EGRESO_PREPARACION per línea de pesaje: lot, physical quantity (droga's unidad base) and the factor applied. */
+export interface EgresoDeLineaPesaje {
+  lineaPesajeId: string;
+  lote: string;
+  cantidad: string;
+  unidadSimbolo: string;
+  potenciaAplicada: string | null;
+  actividadAplicada: string | null;
+  equivalenciaManual: boolean;
+}
+
+export async function listEgresosDeLineasDePreparacion(tx: Prisma.TransactionClient, tenantId: string, preparacionId: string): Promise<EgresoDeLineaPesaje[]> {
+  const rows = await tx.movimientoStock.findMany({
+    where: { tenantId, preparacionId, tipo: "EGRESO_PREPARACION", lineaPesajeId: { not: null } },
+    orderBy: [{ registradoEn: "asc" }, { id: "asc" }],
+    select: {
+      lineaPesajeId: true,
+      cantidad: true,
+      potenciaAplicada: true,
+      actividadAplicada: true,
+      equivalenciaManual: true,
+      partida: { select: { lote: true, droga: { select: { unidadBase: { select: { simbolo: true } } } } } },
+    },
+  });
+  return rows.map((r) => ({
+    lineaPesajeId: r.lineaPesajeId!,
+    lote: r.partida.lote,
+    cantidad: r.cantidad.abs().toString(),
+    unidadSimbolo: r.partida.droga.unidadBase.simbolo,
+    potenciaAplicada: r.potenciaAplicada?.toString() ?? null,
+    actividadAplicada: r.actividadAplicada?.toString() ?? null,
+    equivalenciaManual: r.equivalenciaManual,
+  }));
 }

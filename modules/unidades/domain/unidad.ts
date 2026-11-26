@@ -11,7 +11,7 @@
  * GOTA/UNIDAD_INTERNACIONAL/PORCENTAJE/ACTIVIDAD/PROPORCION until DP-07
  * resolves (plan's binding decision for this task).
  */
-export const TIPOS_MAGNITUD = ["MASA", "VOLUMEN", "UNIDADES"] as const;
+export const TIPOS_MAGNITUD = ["MASA", "VOLUMEN", "UNIDADES", "ACTIVIDAD"] as const;
 export type TipoMagnitud = (typeof TIPOS_MAGNITUD)[number];
 
 const TIPOS_MAGNITUD_SET: ReadonlySet<string> = new Set(TIPOS_MAGNITUD);
@@ -25,6 +25,7 @@ export const TIPO_MAGNITUD_LABELS: Record<TipoMagnitud, string> = {
   MASA: "Masa",
   VOLUMEN: "Volumen",
   UNIDADES: "Unidades",
+  ACTIVIDAD: "Actividad",
 };
 
 /**

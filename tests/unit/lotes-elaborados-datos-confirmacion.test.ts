@@ -79,6 +79,7 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
   getPreparacionParaAccion: getPreparacionParaAccionMock,
   getRecetaDePreparacion: getRecetaDePreparacionMock,
   listReservasDePreparacion: listReservasDePreparacionMock,
+  listDrogasEquivalenciaManualDePreparacion: vi.fn(async () => []),
 }));
 
 vi.mock("@/modules/stock/application/dias-alerta-vencimiento", () => ({

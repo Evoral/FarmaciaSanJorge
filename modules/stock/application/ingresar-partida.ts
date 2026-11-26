@@ -36,6 +36,10 @@ import {
   positiveDecimalString,
   nonNegativeDecimalString,
   potenciaDeclaradaString,
+  actividadDeclaradaString,
+  TIPOS_INGRESO_PARTIDA,
+  type TipoIngresoPartida,
+  validarTipoIngresoPartida,
   esFechaVencimientoFutura,
   requiereAsientoContralor,
 } from "../domain/partida";
@@ -64,8 +68,12 @@ const ingresarPartidaInput = z.object({
   unidadCompraId: uuid,
   costoUnitario: nonNegativeDecimalString,
   numeroValeAdquisicion: z.string().trim().min(1).optional(),
+  /** Required explicit choice ("GRAMOS" | "UI") when `droga.seDosificaEnUi` is true. */
+  tipoIngreso: z.enum(TIPOS_INGRESO_PARTIDA).optional(),
   /** Migration 0058: the lot's purity (%). Optional: empty = 100 %. */
   potenciaDeclarada: potenciaDeclaradaString.optional(),
+  /** Migration 0133: declared activity (U.I./g). Mandatory when `tipoIngreso === "UI"`. */
+  actividadDeclarada: actividadDeclaradaString.optional(),
 });
 
 export interface IngresarPartidaInput {
@@ -77,7 +85,9 @@ export interface IngresarPartidaInput {
   unidadCompraId: string;
   costoUnitario: string;
   numeroValeAdquisicion?: string;
+  tipoIngreso?: TipoIngresoPartida;
   potenciaDeclarada?: string;
+  actividadDeclarada?: string;
 }
 
 /** One purchase lote, every value already validated by the caller's zod schema (decimals as strings). */
@@ -95,7 +105,9 @@ export interface PartidaCompraInput {
   /** Per unidad base (manual alta) or per unidad de compra (invoice price, converted here). */
   costo: { porUnidadBase: string } | { porUnidadCompra: string };
   numeroValeAdquisicion?: string;
+  tipoIngreso?: TipoIngresoPartida;
   potenciaDeclarada?: string;
+  actividadDeclarada?: string;
   /** Migration 0062 -- invoice import only. */
   comprobanteCompraId?: string;
   despachoImportacion?: string | null;
@@ -116,6 +128,16 @@ export async function registrarPartidaCompra(
   const droga = await getDrogaParaIngreso(tx, session.tenantId, input.drogaId);
   if (!droga) throw new NotFoundError("Droga no encontrada.");
   if (droga.fechaBaja !== null) throw new DomainError(`La droga ${droga.nombre} está dada de baja.`, { fields: [campo("drogaId")] });
+
+  validarTipoIngresoPartida(
+    {
+      seDosificaEnUi: droga.seDosificaEnUi,
+      tipoIngreso: input.tipoIngreso,
+      potenciaDeclarada: input.potenciaDeclarada,
+      actividadDeclarada: input.actividadDeclarada,
+    },
+    campo,
+  );
 
   const origen = input.origen ?? "COMPRA";
   if (origen === "EXISTENCIA_INICIAL") {
@@ -196,7 +218,8 @@ export async function registrarPartidaCompra(
     fechaVencimiento: input.fechaVencimiento ?? null,
     registradoPorId: session.usuario.id,
     numeroValeAdquisicion: origen === "COMPRA" ? (input.numeroValeAdquisicion ?? null) : null,
-    potenciaDeclarada: input.potenciaDeclarada ?? null,
+    potenciaDeclarada: input.tipoIngreso === "UI" ? null : (input.potenciaDeclarada ?? null),
+    actividadDeclarada: input.tipoIngreso === "UI" ? (input.actividadDeclarada ?? null) : null,
     comprobanteCompraId: input.comprobanteCompraId ?? null,
     despachoImportacion: input.despachoImportacion ?? null,
     paisOrigen: input.paisOrigen ?? null,
@@ -233,7 +256,8 @@ export async function registrarPartidaCompra(
       cantidadInicialBase,
       costoUnitario,
       numeroValeAdquisicion: origen === "COMPRA" ? (input.numeroValeAdquisicion ?? null) : null,
-      potenciaDeclarada: input.potenciaDeclarada ?? null,
+      potenciaDeclarada: input.tipoIngreso === "UI" ? null : (input.potenciaDeclarada ?? null),
+      actividadDeclarada: input.tipoIngreso === "UI" ? (input.actividadDeclarada ?? null) : null,
       ...(input.comprobanteCompraId
         ? { comprobanteCompraId: input.comprobanteCompraId, despachoImportacion: input.despachoImportacion ?? null, paisOrigen: input.paisOrigen ?? null }
         : {}),
@@ -256,7 +280,9 @@ export const ingresarPartidaCommand = defineCommand({
       unidadCompraId: input.unidadCompraId,
       costo: { porUnidadBase: input.costoUnitario.toString() },
       numeroValeAdquisicion: input.numeroValeAdquisicion,
+      tipoIngreso: input.tipoIngreso,
       potenciaDeclarada: input.potenciaDeclarada?.toString(),
+      actividadDeclarada: input.actividadDeclarada?.toString(),
     });
     return { output: { id }, audit: { entidadId: id, valorNuevo } };
   },

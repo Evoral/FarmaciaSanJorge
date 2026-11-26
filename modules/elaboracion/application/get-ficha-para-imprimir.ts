@@ -9,6 +9,7 @@
  * patient data, only the ficha's opaque id.
  */
 import { z } from "zod";
+import type { Prisma } from "@/generated/prisma/client";
 import { defineQuery } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
 import { NotFoundError } from "@/shared/errors";
@@ -23,12 +24,18 @@ export const getFichaParaImprimirQuery = defineQuery({
   name: "fichas.imprimir.datos",
   permiso: "fichas.imprimir",
   input: getFichaParaImprimirInput,
-  handler: async ({ tx, session, input }) => {
-    const ficha = await getFichaParaImprimirRepo(tx, session.tenantId, input.id);
-    if (!ficha) throw new NotFoundError("Ficha técnica no encontrada.");
-    return ficha;
-  },
+  handler: async ({ tx, session, input }) => getFichaParaImprimirEnTx(tx, session.tenantId, input.id),
 });
+
+/**
+ * The same read inside the caller's transaction (not a use case: the caller already authorized `fichas.imprimir`):
+ * the toma workspace's print (modules/preparaciones) adds the preparación's lots to it.
+ */
+export async function getFichaParaImprimirEnTx(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<FichaParaImprimir> {
+  const ficha = await getFichaParaImprimirRepo(tx, tenantId, id);
+  if (!ficha) throw new NotFoundError("Ficha técnica no encontrada.");
+  return ficha;
+}
 
 export async function getFichaParaImprimir(id: string): Promise<FichaParaImprimir> {
   return getFichaParaImprimirQuery.execute({ id });

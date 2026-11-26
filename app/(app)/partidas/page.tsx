@@ -394,10 +394,17 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                             {conSaldo ? null : <StatusBadge estado="AGOTADA" />}
                             {elaboracion === "DILUCION" ? (
                               <ToneBadge tone="success" title="Elaborado en la farmacia">
-                                Dilución {partida.potenciaDeclarada ? `${formatNumero(partida.potenciaDeclarada, 6)} %` : ""}
+                                Dilución{" "}
+                                {partida.actividadDeclarada
+                                  ? `${formatNumero(partida.actividadDeclarada, 6)} U.I./g`
+                                  : partida.potenciaDeclarada
+                                    ? `${formatNumero(partida.potenciaDeclarada, 6)} %`
+                                    : ""}
                               </ToneBadge>
                             ) : elaboracion === "FORMULA" ? (
                               <ToneBadge tone="success">Elaborado</ToneBadge>
+                            ) : partida.actividadDeclarada ? (
+                              <ToneBadge tone="neutral">{formatNumero(partida.actividadDeclarada, 6)} U.I./g</ToneBadge>
                             ) : null}
                             <ToneBadge tone="neutral">{partida.fechaApertura ? "Abierta" : "Cerrada"}</ToneBadge>
                           </span>

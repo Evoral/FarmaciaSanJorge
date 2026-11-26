@@ -44,6 +44,7 @@ import {
   resumirItemsReceta,
   conUnidadBaseEnPorcentajes,
   unidadDeComponente,
+  validarComponentesUi,
   validarConcentracionesReceta,
   validarCorduraConcentraciones,
   validarItemsReceta,
@@ -242,7 +243,9 @@ export const editarRecetaCommand = defineCommand({
     if ((await unidadesInvalidas(tx, unidadIds)).length > 0) {
       throw new ValidationError("Una o más unidades de medida seleccionadas no existen o están dadas de baja.");
     }
-    validarConcentracionesReceta(itemsDominio, await getMagnitudesDeUnidades(tx, unidadIds));
+    const magnitudes = await getMagnitudesDeUnidades(tx, unidadIds);
+    validarConcentracionesReceta(itemsDominio, magnitudes);
+    validarComponentesUi(itemsDominio, magnitudes, drogas.drogasUi);
     validarCorduraConcentraciones(itemsDominio, await getUnidadesParaCordura(tx, unidadIds));
 
     const headerUpdated = await updateRecetaHeader(

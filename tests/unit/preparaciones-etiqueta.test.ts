@@ -5,6 +5,7 @@
  * (openspec/specs/hoja-etiquetas/spec.md R4, R6).
  */
 import { inflateSync } from "node:zlib";
+import PDFDocument from "pdfkit";
 import { describe, it, expect } from "vitest";
 import { HOJA_PREDETERMINADA, posicionCelda } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import { ETIQUETA_TAMANO_PREDETERMINADO } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
@@ -39,7 +40,7 @@ import {
   tamanoFuenteRp,
 } from "@/modules/preparaciones/infrastructure/etiqueta-pdf";
 import { disposicionCompacta } from "@/modules/preparaciones/infrastructure/etiqueta-pdf-compacta";
-import { variantesMedico } from "@/modules/preparaciones/infrastructure/etiqueta-pdf-trazos";
+import { compX, CONDENSACION_MINIMA_RP, dibujarFormula, enCelda, variantesMedico } from "@/modules/preparaciones/infrastructure/etiqueta-pdf-trazos";
 import { armarContenidoEtiquetaLote, type DatosEtiquetaLote } from "@/modules/stock/domain/etiqueta-lote";
 
 function componente(overrides: Partial<ComponenteEtiqueta>): ComponenteEtiqueta {
@@ -81,9 +82,15 @@ describe("viaDeAdministracion", () => {
     expect(viaDeAdministracion("SUPOSITORIO", 1)).toBe("Rectal");
   });
 
-  it("is empty for the ambiguous formas", () => {
-    expect(viaDeAdministracion("SOLUCION", 1)).toBeNull();
+  it("is empty for the ambiguous forma", () => {
     expect(viaDeAdministracion("SUSPENSION", 1)).toBeNull();
+  });
+
+  it("a solución says its use on the vía line and reads just Solución as forma", () => {
+    expect(viaDeAdministracion("SOLUCION_USO_INTERNO", 1)).toBe("Uso interno");
+    expect(viaDeAdministracion("SOLUCION_USO_EXTERNO", 1)).toBe("Uso externo");
+    expect(formaSegunCantidad("SOLUCION_USO_EXTERNO", 1)).toBe("Solución");
+    expect(formaSegunCantidad("SOLUCION_USO_INTERNO", 2)).toBe("Soluciones");
   });
 
   it("the forma label agrees with the quantity", () => {
@@ -181,8 +188,8 @@ describe("Rp/", () => {
     it("a long line in one column does not squeeze the other: each column is as wide as its widest line", () => {
       const larga = anchoArea * 0.7;
       const corta = anchoArea * 0.4;
-      const { tamano, xs } = distribuirColumnasRp([larga, corta], 7);
-      const escala = tamano / tamanoFuenteRp(7);
+      const { tamano, xs, condensacion } = distribuirColumnasRp([larga, corta], 7);
+      const escala = (tamano / tamanoFuenteRp(7)) * condensacion;
       // Both columns side by side fill the width exactly (no leftover once the size shrank to fit).
       expect(xs[1]! + corta * escala).toBeCloseTo(AREA_RP.derecha, 5);
       // Larger than two equal halves would allow (the long line in half the width).
@@ -192,8 +199,8 @@ describe("Rp/", () => {
 
     it("centers the block horizontally (n+1 equal gaps) and keeps every row inside its height", () => {
       const anchoCol = anchoArea * 0.3;
-      const { tamano, xs, primeraY } = distribuirColumnasRp([anchoCol, anchoCol], 14);
-      const escala = tamano / tamanoFuenteRp(14);
+      const { tamano, xs, primeraY, condensacion } = distribuirColumnasRp([anchoCol, anchoCol], 14);
+      const escala = (tamano / tamanoFuenteRp(14)) * condensacion;
       const gapIzquierdo = xs[0]! - AREA_RP.x;
       const gapDerecho = AREA_RP.derecha - (xs[1]! + anchoCol * escala);
       expect(gapIzquierdo).toBeGreaterThan(0);
@@ -204,8 +211,8 @@ describe("Rp/", () => {
 
     it("centers a single short column horizontally (left gap equals right gap)", () => {
       const anchoCol = anchoArea * 0.2;
-      const { tamano, xs } = distribuirColumnasRp([anchoCol], 3);
-      const escala = tamano / tamanoFuenteRp(3);
+      const { tamano, xs, condensacion } = distribuirColumnasRp([anchoCol], 3);
+      const escala = (tamano / tamanoFuenteRp(3)) * condensacion;
       const gapIzquierdo = xs[0]! - AREA_RP.x;
       const gapDerecho = AREA_RP.derecha - (xs[0]! + anchoCol * escala);
       expect(gapIzquierdo).toBeGreaterThan(0);
@@ -214,9 +221,26 @@ describe("Rp/", () => {
 
     it("narrow columns keep the base size and share the leftover width", () => {
       const angosta = anchoArea * 0.1;
-      const { tamano, xs } = distribuirColumnasRp([angosta, angosta], 7);
+      const { tamano, xs, condensacion } = distribuirColumnasRp([angosta, angosta], 7);
       expect(tamano).toBe(tamanoFuenteRp(7));
+      expect(condensacion).toBe(1);
       expect(xs[1]!).toBeGreaterThan(AREA_RP.x + anchoArea / 2 - 1);
+    });
+
+    it("a fórmula limited by its width condenses the type (never below the floor) and grows into the free height", () => {
+      // Wider than the area at the base size, with only 5 rows: the height has room left.
+      const ancha = anchoArea * 0.8;
+      const sinCondensar = (tamanoFuenteRp(5) * (anchoArea - 4)) / (2 * ancha);
+      const { tamano, condensacion, primeraY } = distribuirColumnasRp([ancha, ancha], 5);
+      expect(condensacion).toBeLessThan(1);
+      expect(condensacion).toBeGreaterThanOrEqual(CONDENSACION_MINIMA_RP);
+      expect(tamano).toBeGreaterThan(sinCondensar);
+      expect(primeraY + tamano * 1.08 * 5).toBeLessThanOrEqual(AREA_RP.abajo + 1e-9);
+    });
+
+    it("does not condense when the height, not the width, limits the size", () => {
+      const { condensacion } = distribuirColumnasRp([anchoArea * 0.3, anchoArea * 0.3], 14);
+      expect(condensacion).toBe(1);
     });
   });
 });
@@ -387,6 +411,23 @@ describe("armarContenidoEtiqueta / formatearContenidoEtiqueta", () => {
     });
   });
 
+  it("100 mL external solución produces forma 'Solución' and vía 'Uso externo'", () => {
+    const contenido = armarContenidoEtiqueta({
+      ...DATOS,
+      formaFarmaceutica: "SOLUCION_USO_EXTERNO",
+      cantidadUnidades: 1,
+      cantidadTotal: "100",
+      unidadTotalSimbolo: "mL",
+      fraccionDosisPorUnidad: "1",
+    });
+    expect(contenido).toMatchObject({
+      cantidad: 1,
+      cantidadTotal: "100 mL",
+      forma: "Solución",
+      via: "Uso externo",
+    });
+  });
+
   it("médico: as on the farmacia's label", () => {
     expect(formatearMedicoEtiqueta(DATOS)).toBe("Médico: Ana Gómez  -  MAT:4521");
   });
@@ -462,7 +503,7 @@ describe("buildEtiquetaPdf", () => {
 
   it("stays one page with many Rp/ lines, no vía, no DT and no domicilio", async () => {
     const muchos = Array.from({ length: 12 }, (_, i) => componente({ drogaNombre: `Droga con un nombre bastante largo ${i + 1}`, esPrincipioActivo: true }));
-    const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta({ ...DATOS, formaFarmaceutica: "SOLUCION", cantidadUnidades: 1, componentes: muchos, directorTecnico: null, tenantDomicilio: null }), ESTANDAR, A4);
+    const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta({ ...DATOS, formaFarmaceutica: "SUSPENSION", cantidadUnidades: 1, componentes: muchos, directorTecnico: null, tenantDomicilio: null }), ESTANDAR, A4);
     expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
   });
 
@@ -650,7 +691,7 @@ describe("buildEtiquetasPdf -- multiple sizes on one sheet", () => {
     const celda2 = { columna: 1, fila: 4 };
 
     const contenido1 = armarContenidoEtiqueta(DATOS);
-    const contenido2 = armarContenidoEtiqueta({ ...DATOS, formaFarmaceutica: "SOLUCION", cantidadUnidades: 1 });
+    const contenido2 = armarContenidoEtiqueta({ ...DATOS, formaFarmaceutica: "SUSPENSION", cantidadUnidades: 1 });
 
     const pdf = await buildEtiquetasPdf(
       [
@@ -742,6 +783,40 @@ describe("buildEtiquetaPdf -- 60 x 15 compact wide layout", () => {
     });
     const pdf = await buildEtiquetaPdf(contenidoMedicoLargo, TAMANO_COMPACTO, A4);
     expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+  });
+
+  it("renders one page with a long fórmula in both compact wide (60 x 15) and tall (40 x 60) designs", async () => {
+    const contenidoFormulaLarga = armarContenidoEtiqueta({
+      ...DATOS,
+      componentes: [
+        componente({ drogaNombre: "Ácido Hialurónico de Muy Alto Peso Molecular", cantidad: "250", unidadSimbolo: "mg", esPrincipioActivo: true }),
+        componente({ drogaNombre: "Colágeno Hidrolizado Marino Concentrado", cantidad: "500", unidadSimbolo: "mg", esPrincipioActivo: true }),
+      ],
+    });
+
+    const pdfWide = await buildEtiquetaPdf(contenidoFormulaLarga, TAMANO_COMPACTO, A4);
+    expect(pdfWide.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+
+    const pdfTall = await buildEtiquetaPdf(contenidoFormulaLarga, { anchoMm: 40, altoMm: 60 }, A4);
+    expect(pdfTall.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+  });
+
+  it("dibujarFormula restores the cell's horizontal compensation afterwards", () => {
+    const doc = new PDFDocument({ size: "A4" });
+    const rpLargo = ["Ácido Hialurónico de Muy Alto Peso Molecular 250 mg"];
+
+    expect(compX(doc)).toBe(1);
+    dibujarFormula(doc, rpLargo, AREA_RP);
+    expect(compX(doc)).toBe(1);
+
+    enCelda(doc, { x: 10, y: 10, escalaX: 0.6, escalaY: 0.9 }, () => {
+      const esperado = 0.9 / 0.6;
+      expect(compX(doc)).toBeCloseTo(esperado, 9);
+      dibujarFormula(doc, rpLargo, AREA_RP);
+      expect(compX(doc)).toBeCloseTo(esperado, 9);
+    });
+    expect(compX(doc)).toBe(1);
+    doc.end();
   });
 });
 

@@ -4,6 +4,7 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { Decimal } from "@/shared/decimal";
+import { mapPartidaActividadDbError } from "./partida-repository";
 
 export interface UpsertFilaRelevamientoInput {
   id: string;
@@ -14,6 +15,7 @@ export interface UpsertFilaRelevamientoInput {
   cantidad?: Decimal | null;
   unidadMedidaId?: string | null;
   potenciaDeclarada?: Decimal | null;
+  actividadDeclarada?: Decimal | null;
   costoUnitario?: Decimal | null;
   proveedorId?: string | null;
   textoDroga?: string | null;
@@ -29,6 +31,7 @@ export interface RelevamientoFilaRaw {
   cantidad: string | null;
   unidad_medida_id: string | null;
   potencia_declarada: string | null;
+  actividad_declarada: string | null;
   costo_unitario: string | null;
   proveedor_id: string | null;
   texto_droga: string | null;
@@ -40,6 +43,7 @@ export interface RelevamientoFilaRaw {
 export interface RelevamientoFilaConDetalles extends RelevamientoFilaRaw {
   droga_nombre: string | null;
   droga_clase: string | null;
+  droga_se_dosifica_en_ui: boolean | null;
   droga_unidad_base_id: string | null;
   unidad_simbolo: string | null;
   proveedor_razon_social: string | null;
@@ -65,6 +69,7 @@ export interface PartidaExistenciaInicialRaw {
   cantidad_disponible: string;
   costo_unitario: string;
   potencia_declarada: string | null;
+  actividad_declarada: string | null;
   fecha_apertura: Date | null;
   usada: boolean;
 }
@@ -80,34 +85,40 @@ export async function upsertFilaRelevamiento(
   tx: Prisma.TransactionClient,
   input: UpsertFilaRelevamientoInput,
 ) {
-  return tx.relevamientoFila.upsert({
-    where: { tenantId_id: { tenantId: input.tenantId, id: input.id } },
-    create: {
-      id: input.id,
-      tenantId: input.tenantId,
-      drogaId: input.drogaId ?? null,
-      lote: input.lote ?? null,
-      fechaVencimiento: input.fechaVencimiento ?? null,
-      cantidad: input.cantidad ?? null,
-      unidadMedidaId: input.unidadMedidaId ?? null,
-      potenciaDeclarada: input.potenciaDeclarada ?? null,
-      costoUnitario: input.costoUnitario ?? null,
-      proveedorId: input.proveedorId ?? null,
-      textoDroga: input.textoDroga ?? null,
-      creadoPorId: input.creadoPorId,
-    },
-    update: {
-      drogaId: input.drogaId ?? null,
-      lote: input.lote ?? null,
-      fechaVencimiento: input.fechaVencimiento ?? null,
-      cantidad: input.cantidad ?? null,
-      unidadMedidaId: input.unidadMedidaId ?? null,
-      potenciaDeclarada: input.potenciaDeclarada ?? null,
-      costoUnitario: input.costoUnitario ?? null,
-      proveedorId: input.proveedorId ?? null,
-      textoDroga: input.textoDroga ?? null,
-    },
-  });
+  try {
+    return await tx.relevamientoFila.upsert({
+      where: { tenantId_id: { tenantId: input.tenantId, id: input.id } },
+      create: {
+        id: input.id,
+        tenantId: input.tenantId,
+        drogaId: input.drogaId ?? null,
+        lote: input.lote ?? null,
+        fechaVencimiento: input.fechaVencimiento ?? null,
+        cantidad: input.cantidad ?? null,
+        unidadMedidaId: input.unidadMedidaId ?? null,
+        potenciaDeclarada: input.potenciaDeclarada ?? null,
+        actividadDeclarada: input.actividadDeclarada ?? null,
+        costoUnitario: input.costoUnitario ?? null,
+        proveedorId: input.proveedorId ?? null,
+        textoDroga: input.textoDroga ?? null,
+        creadoPorId: input.creadoPorId,
+      },
+      update: {
+        drogaId: input.drogaId ?? null,
+        lote: input.lote ?? null,
+        fechaVencimiento: input.fechaVencimiento ?? null,
+        cantidad: input.cantidad ?? null,
+        unidadMedidaId: input.unidadMedidaId ?? null,
+        potenciaDeclarada: input.potenciaDeclarada ?? null,
+        actividadDeclarada: input.actividadDeclarada ?? null,
+        costoUnitario: input.costoUnitario ?? null,
+        proveedorId: input.proveedorId ?? null,
+        textoDroga: input.textoDroga ?? null,
+      },
+    });
+  } catch (e) {
+    mapPartidaActividadDbError(e);
+  }
 }
 
 export async function deleteFilaRelevamiento(
@@ -152,6 +163,7 @@ export async function lockFilasRelevamiento(
   return tx.$queryRaw<RelevamientoFilaRaw[]>`
     SELECT id::text, tenant_id::text, droga_id::text, lote, fecha_vencimiento::text,
            cantidad::text, unidad_medida_id::text, potencia_declarada::text,
+           actividad_declarada::text,
            costo_unitario::text, proveedor_id::text, texto_droga,
            creado_por_id::text, creado_en, actualizado_en
     FROM fsj.relevamiento_fila
@@ -180,6 +192,7 @@ export interface PartidaLoteMatch {
   fechaVencimiento: string | null;
   costoUnitario: string;
   potenciaDeclarada: string | null;
+  actividadDeclarada: string | null;
 }
 
 export async function findPartidaPorDrogaLoteProveedor(
@@ -191,7 +204,7 @@ export async function findPartidaPorDrogaLoteProveedor(
 ): Promise<PartidaLoteMatch | null> {
   const rows = await tx.$queryRaw<PartidaLoteMatch[]>`
     SELECT id::text, origen::text, lote, fecha_vencimiento::text,
-           costo_unitario::text, potencia_declarada::text
+           costo_unitario::text, potencia_declarada::text, actividad_declarada::text
     FROM fsj.partida
     WHERE tenant_id = ${tenantId}::uuid
       AND droga_id = ${drogaId}::uuid
@@ -235,9 +248,10 @@ export async function listFilasRelevamiento(
   return tx.$queryRaw<RelevamientoFilaConDetalles[]>`
     SELECT rf.id::text, rf.tenant_id::text, rf.droga_id::text, rf.lote,
            rf.fecha_vencimiento::text, rf.cantidad::text, rf.unidad_medida_id::text,
-           rf.potencia_declarada::text, rf.costo_unitario::text, rf.proveedor_id::text,
+           rf.potencia_declarada::text, rf.actividad_declarada::text, rf.costo_unitario::text, rf.proveedor_id::text,
            rf.texto_droga, rf.creado_por_id::text, rf.creado_en, rf.actualizado_en,
            d.nombre::text AS droga_nombre, d.clase::text AS droga_clase,
+           d.se_dosifica_en_ui AS droga_se_dosifica_en_ui,
            d.unidad_base_id::text AS droga_unidad_base_id,
            u.simbolo::text AS unidad_simbolo,
            p.razon_social::text AS proveedor_razon_social,
@@ -265,6 +279,7 @@ export async function listPartidasExistenciaInicial(
            p.fecha_ingreso, p.fecha_vencimiento::text, p.fecha_vencimiento_vigente::text,
            p.cantidad_inicial::text, p.cantidad_disponible::text,
            p.costo_unitario::text, p.potencia_declarada::text,
+           p.actividad_declarada::text,
            p.fecha_apertura,
            (
              p.fecha_apertura IS NOT NULL
@@ -301,6 +316,7 @@ export interface PartidaCoincidentePlanillaRaw {
   origen: "COMPRA" | "EXISTENCIA_INICIAL" | "ELABORACION_PROPIA";
   fecha_vencimiento: string | null;
   potencia_declarada: string | null;
+  actividad_declarada: string | null;
   costo_unitario: string | null;
 }
 
@@ -317,6 +333,7 @@ export async function listPartidasCoincidentesFilas(
       p.origen::text,
       p.fecha_vencimiento::text,
       p.potencia_declarada::text,
+      p.actividad_declarada::text,
       p.costo_unitario::text
     FROM fsj.partida p
     JOIN fsj.relevamiento_fila rf
@@ -429,6 +446,7 @@ export async function createFilasRelevamiento(
       cantidad: f.cantidad ?? null,
       unidadMedidaId: f.unidadMedidaId ?? null,
       potenciaDeclarada: f.potenciaDeclarada ?? null,
+      actividadDeclarada: f.actividadDeclarada ?? null,
       costoUnitario: f.costoUnitario ?? null,
       proveedorId: f.proveedorId ?? null,
       textoDroga: f.textoDroga ?? null,
