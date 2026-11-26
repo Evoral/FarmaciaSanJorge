@@ -31,7 +31,7 @@ import { NewPinFields } from "@/modules/auth/ui/new-pin-fields";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import { HUELLA_LONGITUD_MINIMA } from "@/modules/auth/domain/verificacion-identidad";
 import { CodigoLectorInput } from "@/shared/ui/codigo-lector-input";
-import { useFieldErrors } from "@/shared/ui/field-errors";
+import { clearRejectedField, useFieldErrors } from "@/shared/ui/field-errors";
 import { CollapsibleActionCard } from "@/shared/ui/motivo-form";
 import { toast } from "@/shared/ui/toast";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
@@ -116,7 +116,8 @@ function PinSection() {
  * when the farmacia has the huella enabled and the session is an individual one.
  *
  * The code is never shown: the field is masked and the panel only says whether one is enrolled. A rejected submit keeps
- * what was typed and marks the field the error points at (`useFieldErrors`); success clears the form.
+ * the typed password and marks the field the error points at (`useFieldErrors`); a rejected huella code is emptied (the
+ * reader's next scan must not append to it); success clears the form.
  */
 function HuellaSection({ enrolada }: { enrolada: boolean }) {
   const [state, formAction, pending] = useActionState(registrarCredencialOperadorAction, initialCredencialState);
@@ -126,15 +127,17 @@ function HuellaSection({ enrolada }: { enrolada: boolean }) {
   // A reader that sends Enter twice fires two submits before React re-renders `pending`: the ref closes that gap.
   const enviando = useRef(false);
 
+  // Reopened by the end of the transition (`pending` back to false) AND by any new result, so no path leaves the form stuck.
   useEffect(() => {
     if (!pending) enviando.current = false;
-  }, [pending]);
+  }, [pending, state]);
 
   useEffect(() => {
-    if (state.message) {
-      messageRef.current?.focus();
-      if (state.success) formRef.current?.reset();
-    }
+    if (!state.message) return;
+    messageRef.current?.focus();
+    if (state.success) formRef.current?.reset();
+    // A rejected code stays in the masked field and the reader's next scan would append to it: empty it (and focus it).
+    else if (formRef.current) clearRejectedField(formRef.current, state.fields, "huella");
   }, [state]);
   // Declared after the message focus above, so a marked field ends up focused.
   useFieldErrors(formRef, state.fields);
@@ -182,6 +185,7 @@ function HuellaSection({ enrolada }: { enrolada: boolean }) {
             <label htmlFor="huellaCodigo" className="field-label">
               {enrolada ? "Nueva huella" : "Huella"} <span className="font-normal text-zinc-500">(al menos {HUELLA_LONGITUD_MINIMA} caracteres)</span>
             </label>
+            {/* After the current-password field, never before it: a text field preceding a password field is what browsers take for its username. The PIN panel has no text field at all. */}
             <CodigoLectorInput id="huellaCodigo" name="huella" required aria-describedby="huellaCodigoAyuda" />
             <p id="huellaCodigoAyuda" className="text-[0.8125rem] text-zinc-600">
               Hacé clic acá y pasá el dedo por el lector: escribe el código y confirma con Enter.
@@ -265,46 +269,50 @@ export function CuentaForms({ mostrarPin, huella = null }: CuentaFormsProps) {
   }, [state]);
 
   return (
-    <div className={`@container grid items-start gap-6${mostrarPin || huella ? " @3xl:grid-cols-2" : ""}`}>
-      <section className="panel" aria-labelledby="password-heading">
-        <div className="panel-header flex items-start gap-3">
-          <span className="tone-tile" aria-hidden>
-            <KeyRound />
-          </span>
-          <div>
-            <h2 id="password-heading">Cambiar contraseña</h2>
-            <p>Tiene que cumplir los requisitos que se muestran abajo.</p>
-          </div>
-        </div>
-
-        <form action={formAction} onSubmit={onSubmit} noValidate className="panel-body flex flex-col gap-4">
-          <div className="field">
-            <label htmlFor="actual" className="field-label">
-              Contraseña actual
-            </label>
-            <PasswordInput
-              id="actual"
-              name="actual"
-              required
-              autoComplete="current-password"
-              value={actual}
-              onChange={(event) => setActual(event.target.value)}
-              className="input"
-            />
+    // The container and the grid are two elements: a container query cannot style the element that is the container.
+    // `@3xl` (48rem) is where the old viewport `lg:` landed once the sidebar is discounted; below it the panels stack.
+    <div className="@container">
+      <div className={`grid items-start gap-6${mostrarPin || huella ? " @3xl:grid-cols-2" : ""}`}>
+        <section className="panel" aria-labelledby="password-heading">
+          <div className="panel-header flex items-start gap-3">
+            <span className="tone-tile" aria-hidden>
+              <KeyRound />
+            </span>
+            <div>
+              <h2 id="password-heading">Cambiar contraseña</h2>
+              <p>Tiene que cumplir los requisitos que se muestran abajo.</p>
+            </div>
           </div>
 
-          <NewPasswordFields key={fieldsKey} name="nueva" repeatName="nuevaRepeat" repeatLabel="Repetir nueva contraseña" onValidityChange={setPasswordValid} />
+          <form action={formAction} onSubmit={onSubmit} noValidate className="panel-body flex flex-col gap-4">
+            <div className="field">
+              <label htmlFor="actual" className="field-label">
+                Contraseña actual
+              </label>
+              <PasswordInput
+                id="actual"
+                name="actual"
+                required
+                autoComplete="current-password"
+                value={actual}
+                onChange={(event) => setActual(event.target.value)}
+                className="input"
+              />
+            </div>
 
-          <Mensaje state={state} messageRef={messageRef} />
+            <NewPasswordFields key={fieldsKey} name="nueva" repeatName="nuevaRepeat" repeatLabel="Repetir nueva contraseña" onValidityChange={setPasswordValid} />
 
-          <div>
-            <SubmitButton label="Cambiar contraseña" pending={isPending} disabled={actual.length === 0 || !passwordValid} />
-          </div>
-        </form>
-      </section>
+            <Mensaje state={state} messageRef={messageRef} />
 
-      {mostrarPin ? <PinSection /> : null}
-      {huella ? <HuellaSection enrolada={huella.enrolada} /> : null}
+            <div>
+              <SubmitButton label="Cambiar contraseña" pending={isPending} disabled={actual.length === 0 || !passwordValid} />
+            </div>
+          </form>
+        </section>
+
+        {mostrarPin ? <PinSection /> : null}
+        {huella ? <HuellaSection enrolada={huella.enrolada} /> : null}
+      </div>
     </div>
   );
 }
