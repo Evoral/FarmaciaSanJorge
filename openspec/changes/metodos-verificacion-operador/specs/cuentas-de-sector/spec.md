@@ -399,6 +399,11 @@ Ante un rechazo de la identificación, el formulario MUST conservar lo que el us
 - **WHEN** el servidor rechaza la identificación
 - **THEN** el formulario conserva lo que el usuario cargó y el error se muestra en el campo del método usado
 
+#### Scenario: El código rechazado se vacía para volver a leer
+- **GIVEN** el diálogo abierto en un método de código (PIN o huella) y un código rechazado por el servidor
+- **WHEN** el diálogo vuelve a abrirse con el error
+- **THEN** el campo del código queda vacío y con el foco, para que una nueva lectura del lector no se sume al código anterior, y el resto del formulario conserva lo cargado
+
 ### Requirement: Métodos fuera de alcance
 
 El sistema SHALL NOT ofrecer en este cambio WebAuthn, la biometría de la plataforma (Windows Hello, Face ID), las llaves FIDO2 y TOTP, y también deshabilitar el PIN, elegir método por acción o por equipo y la reautenticación (step-up) con su contador y bloqueo de PIN.
