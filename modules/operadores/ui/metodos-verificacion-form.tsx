@@ -13,6 +13,7 @@ import { useState } from "react";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 import type { MetodoConfigurable } from "../domain/metodos-verificacion";
 import { configurarMetodosVerificacionAction } from "./actions";
+import { METODOS_EN_DIALOGO } from "./metodos-en-dialogo";
 
 export interface MetodosVerificacionFormProps {
   metodos: readonly MetodoConfigurable[];
@@ -49,6 +50,9 @@ export function MetodosVerificacionForm({ metodos, disabled = false }: MetodosVe
               aria-label={`${metodo.etiqueta}: habilitado`}
             />
           </label>
+          {METODOS_EN_DIALOGO[metodo.metodo].notaDeConfiguracion ? (
+            <p className="pb-2 text-[0.8125rem] leading-relaxed text-zinc-600">{METODOS_EN_DIALOGO[metodo.metodo].notaDeConfiguracion}</p>
+          ) : null}
         </li>
       ))}
     </ul>
