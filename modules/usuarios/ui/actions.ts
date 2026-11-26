@@ -8,6 +8,7 @@ import { reactivarUsuario } from "@/modules/usuarios/application/reactivar-usuar
 import { darDeBajaUsuario } from "@/modules/usuarios/application/dar-de-baja-usuario";
 import { restablecerCredencial } from "@/modules/usuarios/application/restablecer-credencial";
 import { restablecerPin } from "@/modules/usuarios/application/restablecer-pin";
+import { eliminarCredencialOperadorDeUsuario, type EliminarCredencialOperadorDeUsuarioInput } from "@/modules/usuarios/application/eliminar-credencial-operador";
 import { StepUpRequiredError } from "@/shared/errors";
 import { actionError } from "@/shared/ui/action-error";
 import type { UsuarioActionState } from "@/modules/usuarios/ui/action-state";
@@ -110,5 +111,21 @@ export async function restablecerPinAction(_prevState: UsuarioActionState, formD
     return { status: "success", message: "PIN restablecido." };
   } catch (error) {
     return fromError(error, "No se pudo restablecer el PIN.");
+  }
+}
+
+/**
+ * `usuarios.credencialOperador.eliminar` (openspec/changes/metodos-verificacion-operador): the Administrador removes a
+ * usuario's huella. Not an acción con PIN (`PERMISOS_CON_PIN_*`), so no `conOperador`. The code never travels here.
+ */
+export async function eliminarCredencialOperadorAction(_prevState: UsuarioActionState, formData: FormData): Promise<UsuarioActionState> {
+  try {
+    await eliminarCredencialOperadorDeUsuario({
+      usuarioId: String(formData.get("usuarioId") ?? ""),
+      metodo: String(formData.get("metodo") ?? "") as EliminarCredencialOperadorDeUsuarioInput["metodo"],
+    });
+    return { status: "success", message: "Huella eliminada." };
+  } catch (error) {
+    return fromError(error, "No se pudo eliminar la huella.");
   }
 }

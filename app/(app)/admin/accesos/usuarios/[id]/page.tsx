@@ -21,6 +21,7 @@ import { listRolesAsignables } from "@/modules/usuarios/application/list-roles-a
 import { EstadoAcciones } from "@/modules/usuarios/ui/estado-acciones";
 import { RestablecerCredencial } from "@/modules/usuarios/ui/restablecer-credencial";
 import { RestablecerPin } from "@/modules/usuarios/ui/restablecer-pin";
+import { EliminarCredencialOperador } from "@/modules/usuarios/ui/eliminar-credencial-operador";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
@@ -56,6 +57,8 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
   const puedeRestablecer = can(session, "usuarios.credencial.restablecer") && !esUnoMismo && usuario.estado !== "BAJA";
   // openspec/specs/contrasena-temporal/spec.md: cuentas de sector and admin-only usuarios have no PIN.
   const muestraPin = puedeRestablecer && !usuario.esSector && !usuario.soloAdministrador;
+  // openspec/changes/metodos-verificacion-operador: the Administrador only sees WHETHER a huella is enrolled and can remove it (never enrol it, never see the code).
+  const muestraHuella = muestraPin && usuario.credencialesOperador.includes("HUELLA");
   const estadoPin = !usuario.pinConfigurado ? "Sin configurar (se le pedirá al ingresar)" : usuario.pinBloqueado ? "Bloqueado por intentos fallidos" : "Configurado";
 
   return (
@@ -139,6 +142,18 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
                     <RestablecerPin usuarioId={usuario.id} />
                   </div>
                 ) : null}
+              </section>
+            ) : null}
+
+            {muestraHuella ? (
+              <section className="panel" aria-labelledby="huella-heading">
+                <div className="panel-header">
+                  <h2 id="huella-heading">Huella</h2>
+                  <p>Enrolada</p>
+                </div>
+                <div className="panel-body">
+                  <EliminarCredencialOperador usuarioId={usuario.id} metodo="HUELLA" etiqueta="Huella" />
+                </div>
               </section>
             ) : null}
           </aside>
