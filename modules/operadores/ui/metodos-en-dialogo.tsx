@@ -22,13 +22,16 @@ export interface CampoDeMetodoProps {
   onChange(clave: string, valor: string): void;
   /** The server just rejected this method's proof and the empleado has not touched the field since: mark it (`aria-invalid`). */
   invalido: boolean;
-  /** The proof was just sent: the field no longer accepts input while the dialog finishes closing (a reader's second Enter lands here). */
-  enviado: boolean;
 }
 
 export interface MetodoEnDialogo {
   /** The dialog opens on the enabled method with the highest priority. */
   prioridad: number;
+  /**
+   * A keyboard-wedge reader method: it may send Enter twice, so after answering the dialog lingers a moment and swallows
+   * further submits (`./operador-provider.tsx`). Leave it out for a typed method (the PIN), whose dialog closes at once.
+   */
+  lector?: true;
   /** The line under the dialog title while this method is selected. */
   ayuda: string;
   /** Shown under the method's switch in the farmacia configuration (`./metodos-verificacion-form.tsx`): how it works and what to set up. */
@@ -40,7 +43,7 @@ export const METODOS_EN_DIALOGO: { [M in MetodoVerificacion]: MetodoEnDialogo } 
   PIN: {
     prioridad: 0,
     ayuda: "Ingresá tu PIN. La acción queda registrada a tu nombre.",
-    Campo: ({ id, ref, valores, onChange, invalido, enviado }) => (
+    Campo: ({ id, ref, valores, onChange, invalido }) => (
       <div className="field">
         <label htmlFor={id} className="field-label">
           PIN
@@ -56,7 +59,6 @@ export const METODOS_EN_DIALOGO: { [M in MetodoVerificacion]: MetodoEnDialogo } 
           required
           autoComplete="off"
           aria-invalid={invalido || undefined}
-          readOnly={enviado}
           className="input"
         />
       </div>
@@ -67,10 +69,11 @@ export const METODOS_EN_DIALOGO: { [M in MetodoVerificacion]: MetodoEnDialogo } 
   // dialog's state (a mis-scan: there is nothing to fix by editing it) and the field is marked.
   HUELLA: {
     prioridad: 10,
+    lector: true,
     ayuda: "Pasá tu huella por el lector. La acción queda registrada a tu nombre.",
     notaDeConfiguracion:
       "El lector funciona como un teclado: escribe un código y termina con Enter (igual que el lector de QR). Configuralo para que agregue Enter al final y no agregue prefijo. Cada empleado enrola su huella desde Mi cuenta. El código es un secreto fijo: quien lo conozca puede identificarse como esa persona, por eso se guarda solo como hash, igual que el PIN.",
-    Campo: ({ id, ref, valores, onChange, invalido, enviado }) => (
+    Campo: ({ id, ref, valores, onChange, invalido }) => (
       <div className="field">
         <label htmlFor={id} className="field-label">
           Huella
@@ -83,7 +86,6 @@ export const METODOS_EN_DIALOGO: { [M in MetodoVerificacion]: MetodoEnDialogo } 
           maxLength={HUELLA_LONGITUD_MAXIMA}
           required
           aria-invalid={invalido || undefined}
-          readOnly={enviado}
         />
       </div>
     ),

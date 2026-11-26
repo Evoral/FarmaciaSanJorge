@@ -24,17 +24,18 @@ import { METODOS, METODOS_VERIFICACION, METODO_POR_DEFECTO, type MetodoVerificac
 import { OperadorContextProvider, type CamposDeOperador, type OperadorContextValue } from "@/shared/ui/operador";
 import { METODOS_EN_DIALOGO } from "./metodos-en-dialogo";
 
-/** How long the answered prompt stays on screen, inert, so a reader's second Enter lands on it and not on the page behind it. */
+/**
+ * How long the answered prompt of a reader method (`lector` in the registry) stays mounted, so a reader's second Enter
+ * lands on it (and is swallowed) and not on the page behind it. The PIN dialog closes immediately, as it always did.
+ */
 const MS_HASTA_CERRAR = 300;
 
 interface Pedido {
-  /** One per request: the prompt of a retry after a rejection is a new one (its `enviado` copy keeps the id, so answering does not remount it). */
+  /** One per request: the prompt of a retry after a rejection is a new one (a lingering answered prompt keeps its id, so answering does not remount it). */
   id: number;
   error?: string;
   /** Set when the request is a retry after a rejection: the dialog reopens on the method that was just rejected. */
   metodoInicial?: MetodoVerificacion;
-  /** The empleado answered: the prompt ignores further input until it closes. */
-  enviado?: boolean;
   resolver: (campos: CamposDeOperador | null) => void;
 }
 
@@ -67,10 +68,13 @@ export function OperadorProvider({ permisosConPin, metodos = METODOS_POR_DEFECTO
     const metodo = METODOS_VERIFICACION.find((candidato) => candidato === campos[CAMPO_OPERADOR_METODO]);
     if (metodo) ultimoMetodoRef.current = metodo;
     actual.resolver(campos);
-    // Keep the prompt up, inert, for a moment (see MS_HASTA_CERRAR). A newer request replaces it before then.
-    const respondido = { ...actual, enviado: true };
-    setPedido(respondido);
-    window.setTimeout(() => setPedido((visible) => (visible === respondido ? null : visible)), MS_HASTA_CERRAR);
+    if (!metodo || METODOS_EN_DIALOGO[metodo].lector !== true) {
+      setPedido(null);
+      return;
+    }
+    // A reader method: keep the answered prompt mounted for a moment (see MS_HASTA_CERRAR); its form swallows the
+    // reader's second Enter. A newer request replaces it before then.
+    window.setTimeout(() => setPedido((visible) => (visible === actual ? null : visible)), MS_HASTA_CERRAR);
   }, []);
 
   const value = useMemo<OperadorContextValue>(() => {
@@ -97,7 +101,6 @@ export function OperadorProvider({ permisosConPin, metodos = METODOS_POR_DEFECTO
           key={pedido.id}
           error={pedido.error}
           metodoInicial={pedido.metodoInicial}
-          enviado={pedido.enviado === true}
           metodos={metodos}
           onConfirm={responder}
           onCancel={() => responder(null)}
@@ -110,7 +113,6 @@ export function OperadorProvider({ permisosConPin, metodos = METODOS_POR_DEFECTO
 interface OperadorPromptProps {
   error?: string;
   metodoInicial?: MetodoVerificacion;
-  enviado: boolean;
   metodos: readonly MetodoVerificacion[];
   onConfirm: (campos: CamposDeOperador) => void;
   onCancel: () => void;
@@ -122,9 +124,11 @@ function ordenarPorPrioridad(metodos: readonly MetodoVerificacion[]): MetodoVeri
   return (conocidos.length > 0 ? conocidos : [METODO_POR_DEFECTO]).sort((a, b) => METODOS_EN_DIALOGO[b].prioridad - METODOS_EN_DIALOGO[a].prioridad);
 }
 
-function OperadorPrompt({ error, metodoInicial, enviado, metodos, onConfirm, onCancel }: OperadorPromptProps) {
+function OperadorPrompt({ error, metodoInicial, metodos, onConfirm, onCancel }: OperadorPromptProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const campoRef = useRef<HTMLInputElement>(null);
+  // Set synchronously by the first accepted submit: a second one (a reader's repeated Enter) never reaches `onConfirm`.
+  const respondido = useRef(false);
   const tituloId = useId();
   const campoId = useId();
   const ofrecidos = ordenarPorPrioridad(metodos);
@@ -152,7 +156,8 @@ function OperadorPrompt({ error, metodoInicial, enviado, metodos, onConfirm, onC
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    if (!completo || enviado) return;
+    if (!completo || respondido.current) return;
+    respondido.current = true;
     const campos: CamposDeOperador = { [CAMPO_OPERADOR_METODO]: metodo };
     for (const clave of claves) campos[campoDeOperador(clave)] = valores[clave]!;
     onConfirm(campos);
@@ -187,7 +192,6 @@ function OperadorPrompt({ error, metodoInicial, enviado, metodos, onConfirm, onC
                 key={opcion}
                 type="button"
                 aria-pressed={opcion === metodo}
-                disabled={enviado}
                 onClick={() => {
                   if (opcion === metodo) return;
                   setElegido(opcion);
@@ -212,7 +216,6 @@ function OperadorPrompt({ error, metodoInicial, enviado, metodos, onConfirm, onC
             setEditado(true);
           }}
           invalido={Boolean(error) && !editado}
-          enviado={enviado}
         />
 
         {error ? (
@@ -223,10 +226,10 @@ function OperadorPrompt({ error, metodoInicial, enviado, metodos, onConfirm, onC
         ) : null}
 
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onCancel} disabled={enviado} className="btn btn-secondary">
+          <button type="button" onClick={onCancel} className="btn btn-secondary">
             Cancelar
           </button>
-          <button type="submit" disabled={!completo || enviado} className="btn btn-primary">
+          <button type="submit" disabled={!completo} className="btn btn-primary">
             Confirmar
           </button>
         </div>

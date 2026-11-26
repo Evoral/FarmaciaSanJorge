@@ -47,9 +47,10 @@ and never name a method.
    carries `enrolamiento` (proof key, the zod rules of an enrolled code, the source, the "not available" text). Any
    other method writes its own `IdentificadorDeEmpleado`.
 3. Client: add the `METODOS_EN_DIALOGO` entry (`Campo` + `prioridad` + `ayuda`, optionally `notaDeConfiguracion`, shown under
-   the method's switch in the farmacia configuration). `Campo` receives `invalido` (mark the control after a rejection) and
-   `enviado` (make it read-only: the dialog stays up, inert, for a moment after answering so a reader's second Enter
-   cannot reach the page behind it). A scanned secret uses `shared/ui/codigo-lector-input.tsx` (masked text, no password
+   the method's switch in the farmacia configuration). `Campo` receives `invalido` (mark the control after a rejection).
+   A keyboard-wedge reader method sets `lector: true`: after answering, the dialog stays mounted for a moment and its form
+   swallows further submits, so a reader's second Enter cannot reach the page behind it. A typed method (the PIN) omits
+   the flag and its dialog closes immediately. A scanned secret uses `shared/ui/codigo-lector-input.tsx` (masked text, no password
    manager), not `<input type="password">` (browsers offer to save it).
 4. Enrollment: a code method with `almacen: "CREDENCIAL_OPERADOR"` reuses the generic use cases
    (`auth.credencialOperador.registrar` / `.eliminar`, `usuarios.credencialOperador.eliminar`), which read the

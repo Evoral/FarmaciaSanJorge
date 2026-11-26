@@ -65,6 +65,6 @@ dialog field and the setup note in the admin section. UI and read-only queries o
   huella while the dialog still offers it.
 - Final order of a full rollback: revert the code of slices 2b, 2a, 1 and 0 (newest first), then the 0137 down script,
   then the 0136 one, each as a NEW forward migration.
-- Behavior outside the huella that this slice changes (revert with the code): the dialog stays up, inert, for 300 ms
-  after an answer; a retry after a rejection reopens on the method that was just rejected; `UsuarioDetalle` has a new
+- Behavior outside the huella that this slice changes (revert with the code): after a reader method (huella) answers, the
+  dialog stays up for 300 ms and swallows further submits (the PIN dialog closes at once, unchanged); a retry after a rejection reopens on the method that was just rejected; `UsuarioDetalle` has a new
   `credencialesOperador` field; `/cuenta` renders its panels in a container query grid.

@@ -17,11 +17,9 @@ vi.mock("@/modules/operadores/ui/actions", () => ({ configurarMetodosVerificacio
 const { METODOS_EN_DIALOGO } = await import("@/modules/operadores/ui/metodos-en-dialogo");
 const { MetodosVerificacionForm } = await import("@/modules/operadores/ui/metodos-verificacion-form");
 
-function campoHuella(propios: { invalido?: boolean; enviado?: boolean; valores?: Record<string, string> } = {}): string {
+function campoHuella(propios: { invalido?: boolean; valores?: Record<string, string> } = {}): string {
   const { Campo } = METODOS_EN_DIALOGO.HUELLA;
-  return renderToStaticMarkup(
-    createElement(Campo as never, { id: "campo", ref: null, valores: propios.valores ?? {}, onChange: () => undefined, invalido: propios.invalido ?? false, enviado: propios.enviado ?? false }),
-  );
+  return renderToStaticMarkup(createElement(Campo as never, { id: "campo", ref: null, valores: propios.valores ?? {}, onChange: () => undefined, invalido: propios.invalido ?? false }));
 }
 
 describe("HUELLA field in the dialog", () => {
@@ -37,15 +35,22 @@ describe("HUELLA field in the dialog", () => {
     expect(html).toContain('spellCheck="false"');
   });
 
-  it("is marked invalid only after a rejection, and read-only once the code was sent (a reader's second Enter)", () => {
+  it("is marked invalid only after a rejection and is never read-only or disabled (no visual flash while the dialog lingers)", () => {
     expect(campoHuella()).not.toContain("aria-invalid");
     expect(campoHuella({ invalido: true })).toContain('aria-invalid="true"');
-    expect(campoHuella({ enviado: true })).toContain('readOnly=""');
-    expect(campoHuella()).not.toContain('readOnly=""');
+    expect(campoHuella()).not.toContain("readOnly");
+    expect(campoHuella()).not.toContain("disabled");
   });
 
   it("is a controlled field on the `huella` proof key", () => {
     expect(campoHuella({ valores: { huella: "H-884213" } })).toContain('value="H-884213"');
+  });
+});
+
+describe("reader flag", () => {
+  it("marks only the huella as a reader method: the PIN dialog closes at once, as before", () => {
+    expect(METODOS_EN_DIALOGO.HUELLA.lector).toBe(true);
+    expect(METODOS_EN_DIALOGO.PIN.lector).toBeUndefined();
   });
 });
 
