@@ -30,9 +30,9 @@ don't read it whole). Cross-cutting platform code (M00) lives in `shared/`.
 | Module | Plan | Owns |
 |---|---|---|
 | `auditoria` | M01 | Audit log listing and queries (writing goes through `shared/audit`) |
-| `auth` | M02 | Login, sessions, PIN, forced password change, identifying the empleado on a shared session |
+| `auth` | M02 | Login, sessions, PIN, forced password change, identifying the empleado on a shared session. To add a verification method: `shared/auth/README.md` § "Adding a verification method" |
 | `usuarios` | M03 | Users, roles and permissions (`openspec/specs/roles-personalizables/spec.md`) |
-| `operadores` | — | Cuentas de sector: which acciones ask for the empleado's PIN, and the "who is acting" prompt (`cuentas-de-sector`). The verification itself lives in `auth` |
+| `operadores` | — | Cuentas de sector: which acciones ask for the empleado's PIN, and the "who is acting" prompt (`cuentas-de-sector`). The verification itself lives in `auth`; the dialog's method registry is `ui/metodos-en-dialogo.tsx` (see `shared/auth/README.md` § "Adding a verification method") |
 | `directores-tecnicos` | M04 | Director Técnico designation and who is in charge today |
 | `unidades` | M05 | Units of measure catalog |
 | `drogas` | M06 | Drugs catalog and their synonyms (`sinonimos-droga`) |

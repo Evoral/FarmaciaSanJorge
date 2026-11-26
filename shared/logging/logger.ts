@@ -6,6 +6,7 @@
  */
 import pino from "pino";
 import { getEnv } from "@/shared/env";
+import { CLAVES_Y_CAMPOS_DE_PRUEBA } from "@/shared/auth/operador-campos";
 
 /** Exported so tests/unit/logger.test.ts (which builds its own pino instance to avoid the pino-pretty transport) and tests/unit/pacientes-logging-redaccion.test.ts can assert against the REAL list instead of a hand-duplicated copy that could silently drift from it. */
 export const REDACT_PATHS = [
@@ -55,10 +56,10 @@ export const REDACT_PATHS = [
   // variants, plus the health and address fields of a receta, whose keys are
   // unambiguous enough to redact at any of the three levels a log call nests.
   ...enTresNiveles([
-    "pin",
+    // The proof keys and form fields of every verification method (the method catalog): "pin", "operadorPin", ...
+    ...CLAVES_Y_CAMPOS_DE_PRUEBA,
     "pinRepeat",
     "pinHash",
-    "operadorPin",
     "passwordActual",
     "passwordHash",
     "passwordTemporal",

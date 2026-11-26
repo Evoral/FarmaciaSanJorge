@@ -9,6 +9,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { getPrismaClient } from "@/shared/db/client";
 import type { PasoPendiente } from "@/shared/auth/pasos";
+import { OPERADOR_ELEGIBLE } from "./operador-elegible";
 import { derivarPasosPendientes, esSoloAdministrador } from "../domain/pasos-pendientes";
 
 export interface LoginCandidate {
@@ -183,7 +184,7 @@ export async function loadPinEstado(tx: Prisma.TransactionClient, usuarioId: str
  */
 export async function loadPinHashesDeOperadores(tx: Prisma.TransactionClient, tenantId: string): Promise<{ id: string; pinHash: string }[]> {
   const rows = await tx.usuario.findMany({
-    where: { tenantId, estado: "ACTIVO", esSector: false, esTecnico: false, pinHash: { not: null }, debeCambiarPassword: false },
+    where: { tenantId, ...OPERADOR_ELEGIBLE, pinHash: { not: null } },
     select: { id: true, pinHash: true },
   });
   return rows.flatMap((row) => (row.pinHash ? [{ id: row.id, pinHash: row.pinHash }] : []));

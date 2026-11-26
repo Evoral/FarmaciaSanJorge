@@ -38,27 +38,27 @@ Start: `master`-equivalent. End: PIN flows through registries and a generic cred
 Must pass **unchanged** (do not edit): `tests/unit/cuentas-de-sector-{alta,auditoria,password-politica,pipeline,verificar-operador}.test.ts`, `auth-pin-disponible`, `auth-configurar-pin`, `auth-configurar-pin-obligatorio`, `auth-reauth-pin`, `auth-pin-removed`, `auth-pin-never-for-login-or-cofirma`, `contrasena-temporal-operadores`, `logger`, `tests/db/auth-pin.test.ts`, `tests/db/catalogo-guardas.test.ts`.
 
 Commit A — `refactor(auth): derive operador carrier and field names from a method catalog`
-- [ ] 1.1 `modules/auth/domain/verificacion-identidad.ts`: `PruebaDeIdentidad` union (PIN only), `MetodoVerificacion`, `METODOS_VERIFICACION`, `METODO_POR_DEFECTO = "PIN"`, `METODOS` catalog (`etiqueta`, `claves`, `siempreHabilitado`, `almacen`). Pure: no zod, Prisma or Next (D1). Done: typechecks; `domain/` lint boundary green.
-- [ ] 1.2 `shared/auth/operador-campos.ts`: `campoDeOperador`, `camposDeOperador`, `esCampoDeOperador`, `CAMPOS_DE_PRUEBA_OPERADOR`; keep `CAMPO_OPERADOR_PIN = "operadorPin"` (D4, D5). Done: `{ operadorPin }` still yields `{ prueba: { metodo: "PIN", pin } }`.
-- [ ] 1.3 `shared/auth/operador-context.ts` / `operador.ts`: `credencialDesde` collects catalog fields generically, `operadorMetodo` defaults to PIN; carrier is `{ prueba }`. `shared/usecase.ts` `resolverActor`: rejection marker uses `camposDeOperador(credencial.prueba.metodo)` (D5), contract otherwise untouched.
-- [ ] 1.4 Tests (new files): `campoDeOperador`/`camposDeOperador`/`esCampoDeOperador`; carrier collects fields generically and defaults to PIN.
+- [x] 1.1 `modules/auth/domain/verificacion-identidad.ts`: `PruebaDeIdentidad` union (PIN only), `MetodoVerificacion`, `METODOS_VERIFICACION`, `METODO_POR_DEFECTO = "PIN"`, `METODOS` catalog (`etiqueta`, `claves`, `siempreHabilitado`, `almacen`). Pure: no zod, Prisma or Next (D1). Done: typechecks; `domain/` lint boundary green.
+- [x] 1.2 `shared/auth/operador-campos.ts`: `campoDeOperador`, `camposDeOperador`, `esCampoDeOperador`, `CAMPOS_DE_PRUEBA_OPERADOR`; keep `CAMPO_OPERADOR_PIN = "operadorPin"` (D4, D5). Done: `{ operadorPin }` still yields `{ prueba: { metodo: "PIN", pin } }`.
+- [x] 1.3 `shared/auth/operador-context.ts` / `operador.ts`: `credencialDesde` collects catalog fields generically, `operadorMetodo` defaults to PIN; carrier is `{ prueba }`. `shared/usecase.ts` `resolverActor`: rejection marker uses `camposDeOperador(credencial.prueba.metodo)` (D5), contract otherwise untouched.
+- [x] 1.4 Tests (new files): `campoDeOperador`/`camposDeOperador`/`esCampoDeOperador`; carrier collects fields generically and defaults to PIN.
 
 Commit B — `refactor(auth): add method registry and shared secret-code strategy`
-- [ ] 1.5 `modules/auth/infrastructure/operador-elegible.ts`: the S7 filter (`OPERADOR_ELEGIBLE`) as the single source; `loadPinHashesDeOperadores` spreads it so its `findMany` argument stays deep-equal (design "PIN wiring").
-- [ ] 1.6 `modules/auth/application/identificacion-por-codigo.ts`: `FuenteDeCodigos`, `identificadorPorCodigo`, `assertCodigoDisponible`.
-- [ ] 1.7 `modules/auth/application/metodos-verificacion.ts`: `REGISTRO` (PIN only; schema exactly today's `min(1).max(64)`, today's two rejection messages verbatim, optional `iniciar` with no caller). PIN source wraps `loadPinHashesDeOperadores` / `loadPinHashesDeOtros` in arrow functions (lock `'fsj.pin:'` unchanged) so partial vitest mocks stay valid.
-- [ ] 1.8 `modules/auth/application/{identificador-pin,verificar-operador,pin-disponible}.ts`: dispatch by method (D2); `pin-disponible.ts` keeps signature and messages and delegates.
-- [ ] 1.9 Tests (new): registry keys equal `METODOS_VERIFICACION` at runtime (guards against casts); strategy run against a fake `FuenteDeCodigos` (match, none, AMBIGUA, S7 filtering, uniqueness).
+- [x] 1.5 `modules/auth/infrastructure/operador-elegible.ts`: the S7 filter (`OPERADOR_ELEGIBLE`) as the single source; `loadPinHashesDeOperadores` spreads it so its `findMany` argument stays deep-equal (design "PIN wiring").
+- [x] 1.6 `modules/auth/application/identificacion-por-codigo.ts`: `FuenteDeCodigos`, `identificadorPorCodigo`, `assertCodigoDisponible`.
+- [x] 1.7 `modules/auth/application/metodos-verificacion.ts`: `REGISTRO` (PIN only; schema exactly today's `min(1).max(64)`, today's two rejection messages verbatim, optional `iniciar` with no caller). PIN source wraps `loadPinHashesDeOperadores` / `loadPinHashesDeOtros` in arrow functions (lock `'fsj.pin:'` unchanged) so partial vitest mocks stay valid.
+- [x] 1.8 `modules/auth/application/{identificador-pin,verificar-operador,pin-disponible}.ts`: dispatch by method (D2); `pin-disponible.ts` keeps signature and messages and delegates.
+- [x] 1.9 Tests (new): registry keys equal `METODOS_VERIFICACION` at runtime (guards against casts); strategy run against a fake `FuenteDeCodigos` (match, none, AMBIGUA, S7 filtering, uniqueness).
 
 Commit C — `refactor(ui): consume the method registry in the dialog, form errors, logger and audit label`
-- [ ] 1.10 `modules/operadores/ui/metodos-en-dialogo.tsx`: client registry (PIN `Campo`, `prioridad`); `operador-provider.tsx` renders from it (a single method shows no switch: dialog identical to today) (D9).
-- [ ] 1.11 `shared/ui/use-form-submit.ts`, `shared/ui/form-parts.tsx:140`, `planilla-existencia-inicial.tsx:480`: use `esCampoDeOperador`; on success delete every `CAMPOS_DE_PRUEBA_OPERADOR` field.
-- [ ] 1.12 `shared/logging/logger.ts`: redaction from the catalog (`enTresNiveles([...existing, ...CLAVES_Y_CAMPOS_DE_PRUEBA])`); `modules/auditoria/ui/auditoria-diff.tsx`: label from `METODOS[verificacion]?.etiqueta ?? verificacion` ("identificado con PIN" unchanged).
-- [ ] 1.13 Tests: logger redacts every catalog key (per-method loop, PIN only today); audit label unchanged.
+- [x] 1.10 `modules/operadores/ui/metodos-en-dialogo.tsx`: client registry (PIN `Campo`, `prioridad`); `operador-provider.tsx` renders from it (a single method shows no switch: dialog identical to today) (D9).
+- [x] 1.11 `shared/ui/use-form-submit.ts`, `shared/ui/form-parts.tsx:140`, `planilla-existencia-inicial.tsx:480`: use `esCampoDeOperador`; on success delete every `CAMPOS_DE_PRUEBA_OPERADOR` field.
+- [x] 1.12 `shared/logging/logger.ts`: redaction from the catalog (`enTresNiveles([...existing, ...CLAVES_Y_CAMPOS_DE_PRUEBA])`); `modules/auditoria/ui/auditoria-diff.tsx`: label from `METODOS[verificacion]?.etiqueta ?? verificacion` ("identificado con PIN" unchanged).
+- [x] 1.13 Tests: logger redacts every catalog key (per-method loop, PIN only today); audit label unchanged.
 
 Commit D — `docs(auth): how to add a verification method`
-- [ ] 1.14 The 6-step guide goes in `shared/auth/README.md` (new section "Adding a verification method"; that is where auth/session/operador readers look per AGENTS.md). Add a one-line pointer in `modules/README.md` (auth and operadores entries). Copy the six steps from `design.md` "How to add a method".
-- [ ] 1.15 `docs/rollbacks/metodos-verificacion-operador.md`: create with the slice 0 section (revert the commits; no schema). Later slices append.
+- [x] 1.14 The 6-step guide goes in `shared/auth/README.md` (new section "Adding a verification method"; that is where auth/session/operador readers look per AGENTS.md). Add a one-line pointer in `modules/README.md` (auth and operadores entries). Copy the six steps from `design.md` "How to add a method".
+- [x] 1.15 `docs/rollbacks/metodos-verificacion-operador.md`: create with the slice 0 section (revert the commits; no schema). Later slices append.
 
 Done criteria PR 1: typecheck, lint, `npm test` green with the guard tests untouched; no copy or message diff; no schema.
 Not verified locally (state in PR): `test:db`, browser dialog check. Manual: open the PIN dialog on a cuenta de sector, wrong PIN keeps the form and marks the PIN field.

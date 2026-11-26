@@ -38,7 +38,7 @@ import { agregarYEnfocar, filaDeLista } from "@/shared/ui/enfocar-al-agregar";
 import { markInvalidFields } from "@/shared/ui/field-errors";
 import { useOperador } from "@/shared/ui/operador";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
-import { CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
+import { esCampoDeOperador } from "@/shared/auth/operador-campos";
 import { formatVencimientoLote } from "@/shared/format/fecha";
 import { dec } from "@/shared/decimal";
 import {
@@ -477,7 +477,7 @@ export function PlanillaExistenciaInicial({
         } else if (
           resultado.status === "error" &&
           "fields" in resultado &&
-          (resultado as { fields?: string[] }).fields?.includes(CAMPO_OPERADOR_PIN)
+          (resultado as { fields?: string[] }).fields?.some(esCampoDeOperador)
         ) {
           pedirOperador = true;
           errorOperador = resultado.message;

@@ -55,7 +55,7 @@ import type { Permiso } from "@/shared/auth/authorize";
 import { verificarOperadorEnTx } from "@/shared/auth/operador";
 import type { VerificacionDeOperador } from "@/shared/auth/operador";
 import { solicitudDeOperador, type SolicitudDeOperador } from "@/shared/auth/operador-context";
-import { CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
+import { camposDeOperador } from "@/shared/auth/operador-campos";
 import { withTenantTransaction } from "@/shared/db/transaction";
 import { AuthorizationError, DomainError, OperadorRequeridoError, ValidationError, mapDbError } from "@/shared/errors";
 import { record as auditRecord } from "@/shared/audit";
@@ -296,12 +296,12 @@ async function authorizeAuditado(session: AuthenticatedSession, casoDeUso: strin
   }
 }
 
-/** The request's operador credential, verified once per request (memoized on the request); a rejection throws on the PIN field. */
+/** The request's operador credential, verified once per request (memoized on the request); a rejection throws on the claimed method's field(s). */
 async function operadorVerificado(session: AuthenticatedSession, solicitud: SolicitudDeOperador): Promise<Extract<VerificacionDeOperador, { ok: true }>> {
   const { credencial } = solicitud;
   solicitud.verificacion ??= withTenantTransaction(session.tenantId, (tx) => verificarOperadorEnTx(tx, session, credencial));
   const verificacion = (await solicitud.verificacion) as VerificacionDeOperador;
-  if (!verificacion.ok) throw new DomainError(verificacion.message, { fields: [CAMPO_OPERADOR_PIN] });
+  if (!verificacion.ok) throw new DomainError(verificacion.message, { fields: [...camposDeOperador(credencial?.prueba.metodo ?? "")] });
   return verificacion;
 }
 

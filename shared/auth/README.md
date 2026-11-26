@@ -24,6 +24,29 @@ Action received (`conOperador(formData, ...)`) to the use-case pipeline for the
 duration of the request; `operador.ts` is the facade over the verification in
 `modules/auth`; `operador-campos.ts` holds the form field names (client-safe).
 
+## Adding a verification method
+
+`openspec/specs/cuentas-de-sector/spec.md`. How an empleado proves who they are on a shared session is a closed
+catalog (`MetodoVerificacion`, today the PIN). Three registries are mapped types over it, so a method missing from any
+of them fails `npm run typecheck`: the domain catalog (`modules/auth/domain/verificacion-identidad.ts`: proof
+variant, label, proof keys, always-on flag, storage), the server registry
+(`modules/auth/application/metodos-verificacion.ts`) and the client registry
+(`modules/operadores/ui/metodos-en-dialogo.tsx`). The carrier (`operador-context.ts`), the form plumbing, the
+rejection field marker, the logger redaction and the audit label derive from the catalog through `operador-campos.ts`
+and never name a method.
+
+1. Domain: add the proof variant to `PruebaDeIdentidad`, and its `METODOS` entry (label, keys,
+   `almacen`); `METODOS_VERIFICACION` is derived from the `METODOS` keys.
+2. Server: add the `REGISTRO` entry. A code method uses `identificadorPorCodigo` with a `FuenteDeCodigos`; any other
+   method writes its own `IdentificadorDeEmpleado`.
+3. Client: add the `METODOS_EN_DIALOGO` entry (component + `prioridad`).
+4. Enrollment: a code method reuses the generic credential use cases and panel; any other method writes its own.
+5. A two-step method (WebAuthn) implements `iniciar`. Add one `iniciarVerificacionAction(metodo)` in
+   `modules/operadores/ui/actions.ts` that calls it and stores the challenge server-side, single-use. Its `Campo` fetches
+   the challenge on mount and puts the signed assertion into its proof keys; the verifier checks it inside `identificar`.
+6. Run `npm run typecheck`: it lists every registry still missing the method. Nothing else changes: not the carrier,
+   the `conOperador` sites, `resolverActor`, the logger, the audit writer or the field markers.
+
 ## Login
 
 `modules/auth/application/login.ts` handles authentication against policies in

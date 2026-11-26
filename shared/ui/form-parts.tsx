@@ -7,7 +7,7 @@
  */
 import { useId, type ReactNode } from "react";
 import Link from "next/link";
-import { CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
+import { esCampoDeOperador } from "@/shared/auth/operador-campos";
 
 /**
  * Base shape every module's `ui/action-state.ts` union conforms to. Module
@@ -135,9 +135,9 @@ export function FormFeedback<S extends FormActionState>({ state, layout, success
   const current: FormActionState = state;
   const floating = layout === "inline";
 
-  // A rejected PIN reopens the operador prompt with this same message (./use-form-submit.ts): shown there only, never
+  // A rejected proof (PIN or any other method) reopens the operador prompt with this same message (./use-form-submit.ts): shown there only, never
   // twice -- and never floating out of a table row.
-  if (current.status === "error" && current.fields?.includes(CAMPO_OPERADOR_PIN)) return null;
+  if (current.status === "error" && current.fields?.some(esCampoDeOperador)) return null;
 
   if (current.status === "error") {
     return (

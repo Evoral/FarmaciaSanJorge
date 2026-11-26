@@ -55,7 +55,7 @@
  * In an individual session none of this ever triggers.
  */
 import { startTransition, useCallback, useEffect, useRef, type FormEvent } from "react";
-import { CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
+import { aplicarCamposDeOperador, CAMPOS_DE_PRUEBA_OPERADOR, esCampoDeOperador } from "@/shared/auth/operador-campos";
 import { clearInvalidFields } from "./field-errors";
 import { useOperador } from "./operador";
 
@@ -105,7 +105,7 @@ export function useFormSubmit(formAction: (payload: FormData) => void, opciones?
     (formData: FormData, error?: string) => {
       void operador.pedir(error).then((campos) => {
         if (!campos) return;
-        for (const [nombre, valor] of Object.entries(campos)) formData.set(nombre, valor);
+        aplicarCamposDeOperador(formData, campos);
         enviar(formData);
       });
     },
@@ -142,11 +142,11 @@ export function useFormSubmit(formAction: (payload: FormData) => void, opciones?
     if (!formData) return;
     if (estado.status === "operador-required") {
       despacharConOperador(formData);
-    } else if (estado.status === "error" && estado.fields?.includes(CAMPO_OPERADOR_PIN)) {
+    } else if (estado.status === "error" && estado.fields?.some(esCampoDeOperador)) {
       despacharConOperador(formData, estado.message);
     } else if (estado.status === "success") {
-      // The act is done: the PIN must not linger in memory.
-      formData.delete(CAMPO_OPERADOR_PIN);
+      // The act is done: the proof must not linger in memory.
+      for (const campo of CAMPOS_DE_PRUEBA_OPERADOR) formData.delete(campo);
     }
   }, [estado, despacharConOperador]);
 

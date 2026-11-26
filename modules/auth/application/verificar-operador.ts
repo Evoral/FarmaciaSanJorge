@@ -22,8 +22,7 @@
  * already authorized. Whether the empleado HOLDS the permiso of the act is
  * the pipeline's next check, not this function's.
  *
- * The method is pluggable (`IDENTIFICADORES`, ../domain/verificacion-identidad.ts):
- * the PIN today. `usuario.pin_hash` is still compared only inside
+ * The method is pluggable (`REGISTRO`, ./metodos-verificacion.ts): the PIN today. `usuario.pin_hash` is still compared only inside
  * modules/auth (here and in ./reautenticar.ts).
  *
  * AUDIT: every rejected attempt is audited (as the co-firma does), authored
@@ -37,18 +36,12 @@ import { record as auditRecord, TipoAccion } from "@/shared/audit";
 import type { AuthenticatedSession } from "../domain/session";
 import type { Permiso } from "../domain/permisos";
 import { decideCandidatoOperador } from "../domain/operador-policy";
-import type { IdentificadorDeEmpleado, MetodoVerificacion, RechazoIdentificacion } from "../domain/verificacion-identidad";
+import { METODOS_VERIFICACION, type MetodoVerificacion } from "../domain/verificacion-identidad";
 import { loadUsuarioConPermisos } from "../infrastructure/session-repository";
-import { identificadorPin, type ContextoIdentificacion } from "./identificador-pin";
+import { entradaDe } from "./metodos-verificacion";
 
-/** One identifier per method. Adding a method = one more `PruebaDeIdentidad` variant, one more entry here and in `pruebaDeIdentidadInput`. */
-const IDENTIFICADORES: { [M in MetodoVerificacion]: IdentificadorDeEmpleado<M, ContextoIdentificacion> } = {
-  PIN: identificadorPin,
-};
-
-const pruebaDeIdentidadInput = z.discriminatedUnion("metodo", [z.object({ metodo: z.literal("PIN"), pin: z.string().min(1).max(64) })]);
-
-const credencialOperadorInput = z.object({ prueba: pruebaDeIdentidadInput });
+/** The envelope only names the method; the method's registry entry (./metodos-verificacion.ts) validates the proof itself. */
+const credencialOperadorInput = z.object({ prueba: z.looseObject({ metodo: z.enum(METODOS_VERIFICACION) }) });
 
 export interface OperadorVerificado {
   id: string;
@@ -63,18 +56,16 @@ export type VerificacionDeOperador = { ok: true; operador: OperadorVerificado; m
 
 export const MENSAJE_OPERADOR_RECHAZADO = "No se pudo identificar al empleado. Volvé a ingresar el PIN.";
 
-const MENSAJES_RECHAZO: Record<RechazoIdentificacion, string> = {
-  NO_RECONOCIDA: "El PIN no corresponde a ningún empleado habilitado.",
-  AMBIGUA: "Ese PIN lo tiene más de un empleado. Cambialo desde «Mi cuenta» para poder identificarte.",
-};
-
 /** `credencial` is what the request carried, untrusted (`conOperador`, shared/auth/operador-context.ts); `session.tenantId` scopes the lookup. */
 export async function verificarOperadorEnTx(tx: Prisma.TransactionClient, session: AuthenticatedSession, credencial: unknown): Promise<VerificacionDeOperador> {
-  const parsed = credencialOperadorInput.safeParse(credencial);
+  const envoltura = credencialOperadorInput.safeParse(credencial);
+  if (!envoltura.success) return { ok: false, message: MENSAJE_OPERADOR_RECHAZADO };
+  const entrada = entradaDe(envoltura.data.prueba.metodo);
+  const parsed = entrada.prueba.safeParse(envoltura.data.prueba);
   if (!parsed.success) return { ok: false, message: MENSAJE_OPERADOR_RECHAZADO };
-  const { prueba } = parsed.data;
+  const prueba = parsed.data;
 
-  const identificacion = await IDENTIFICADORES[prueba.metodo].identificar({ tx, tenantId: session.tenantId }, prueba);
+  const identificacion = await entrada.identificador.identificar({ tx, tenantId: session.tenantId }, prueba);
   const candidato = identificacion.ok ? await loadUsuarioConPermisos(tx, identificacion.usuarioId) : null;
   // The identifier only offers eligible empleados; re-checked on the loaded row so the rule has one source.
   const candidatura =
@@ -108,5 +99,5 @@ export async function verificarOperadorEnTx(tx: Prisma.TransactionClient, sessio
     contexto: { sesionId: session.sesionId },
   });
 
-  return { ok: false, message: identificacion.ok ? MENSAJE_OPERADOR_RECHAZADO : MENSAJES_RECHAZO[identificacion.motivo] };
+  return { ok: false, message: identificacion.ok ? MENSAJE_OPERADOR_RECHAZADO : entrada.rechazo[identificacion.motivo] };
 }

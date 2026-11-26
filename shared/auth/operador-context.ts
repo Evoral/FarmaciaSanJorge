@@ -3,7 +3,7 @@
  * sector's shared session (openspec/specs/cuentas-de-sector/spec.md).
  *
  * A Server Action wraps its body in `conOperador(formData, ...)`. The
- * credential the form sent (`operadorPin`) then travels
+ * credential the form sent (`operador<Clave>`, one per proof key of the method catalog) then travels
  * ambiently -- same approach as shared/audit/request-context.ts -- to the
  * use-case pipeline (shared/usecase.ts), which is the only reader that acts
  * on it: no zod input schema and no use-case signature has to carry it, and
@@ -18,12 +18,13 @@
  * Server-only (`node:async_hooks`); never import it from a client component.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
-import { CAMPO_OPERADOR_METODO, CAMPO_OPERADOR_PIN } from "./operador-campos";
+import { METODO_POR_DEFECTO, METODOS, METODOS_VERIFICACION } from "@/modules/auth/domain/verificacion-identidad";
+import { campoDeOperador, CAMPO_OPERADOR_METODO } from "./operador-campos";
 
 /** What the request presented, untrusted and unparsed -- validated by the verifier (modules/auth/application/verificar-operador.ts). */
 export interface CredencialDeOperador {
   /** The proof alone identifies the empleado: there is no "who" to pick. */
-  prueba: { metodo: string; pin: string };
+  prueba: { metodo: string } & Record<string, string>;
 }
 
 /** The empleado the pipeline verified in this request, and where they acted from. */
@@ -49,11 +50,18 @@ export function solicitudDeOperador(): SolicitudDeOperador | undefined {
   return storage.getStore();
 }
 
+/** Collects every catalog proof field the form sent; with no `operadorMetodo` the method is the default (PIN). */
 function credencialDesde(formData: FormData): CredencialDeOperador | null {
-  const pin = formData.get(CAMPO_OPERADOR_PIN);
-  if (typeof pin !== "string" || pin.length === 0) return null;
+  const prueba: Record<string, string> = {};
+  for (const metodo of METODOS_VERIFICACION) {
+    for (const clave of METODOS[metodo].claves) {
+      const valor = formData.get(campoDeOperador(clave));
+      if (typeof valor === "string" && valor.length > 0) prueba[clave] = valor;
+    }
+  }
+  if (Object.keys(prueba).length === 0) return null;
   const metodo = formData.get(CAMPO_OPERADOR_METODO);
-  return { prueba: { metodo: typeof metodo === "string" && metodo.length > 0 ? metodo : "PIN", pin } };
+  return { prueba: { metodo: typeof metodo === "string" && metodo.length > 0 ? metodo : METODO_POR_DEFECTO, ...prueba } };
 }
 
 /** Runs `fn` with `credencial` as the request's operador credential. Server Actions use `conOperador`; this is its core (and what tests call). */
