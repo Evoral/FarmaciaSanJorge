@@ -64,7 +64,9 @@ describe("MetodosVerificacionForm (read-only rendering)", () => {
   it("shows the huella toggle with the reader setup note", () => {
     const html = renderToStaticMarkup(createElement(MetodosVerificacionForm, { metodos: [{ metodo: "HUELLA", etiqueta: "Huella", habilitado: false }], disabled: true }));
 
-    expect(html).toContain("Huella: habilitado");
+    // The switch is named by the method alone: its checked state says whether it is on.
+    expect(html).toContain('aria-label="Huella"');
+    expect(html).toContain('role="switch"');
     expect(html).toContain("termina con Enter");
     expect(html).toContain("se guarda solo como hash");
   });
