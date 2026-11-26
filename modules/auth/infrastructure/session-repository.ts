@@ -10,6 +10,7 @@ import { getPrismaClient } from "@/shared/db/client";
 import { withTenantTransaction } from "@/shared/db/transaction";
 import { PERMISOS_CON_PIN_SIEMPRE, isPermiso, permisosEfectivos, type Permiso } from "../domain/permisos";
 import { esSoloAdministrador } from "../domain/pasos-pendientes";
+import { METODOS_SIEMPRE_HABILITADOS, METODOS_OPCIONALES, type MetodoVerificacion } from "../domain/verificacion-identidad";
 
 export interface NewSesionRow {
   tenantId: string;
@@ -209,6 +210,23 @@ export async function loadPermisosConPin(tx: Prisma.TransactionClient, tenantId:
     if (isPermiso(fila.permiso.codigo)) permisos.add(fila.permiso.codigo);
   }
   return permisos;
+}
+
+/**
+ * The verification methods this farmacia accepts (`fsj.metodo_verificacion_habilitado`, migration 0136), seeded with the
+ * always-on ones (mirrors `loadPermisosConPin` + `PERMISOS_CON_PIN_SIEMPRE`). A stored row for a method the app no longer
+ * offers as optional is ignored.
+ */
+export async function loadMetodosHabilitados(tx: Prisma.TransactionClient, tenantId: string): Promise<ReadonlySet<MetodoVerificacion>> {
+  const habilitados = new Set<MetodoVerificacion>(METODOS_SIEMPRE_HABILITADOS);
+  // Nothing stored can matter while no method is optional: skip the query on the per-request path.
+  if (METODOS_OPCIONALES.length === 0) return habilitados;
+  const filas = await tx.metodoVerificacionHabilitado.findMany({ where: { tenantId }, select: { metodo: true } });
+  for (const fila of filas) {
+    const metodo = METODOS_OPCIONALES.find((opcional) => opcional === fila.metodo);
+    if (metodo) habilitados.add(metodo);
+  }
+  return habilitados;
 }
 
 /** Reads `fsj.sesion` by (tenant-scoped) id. */

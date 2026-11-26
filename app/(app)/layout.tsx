@@ -323,7 +323,15 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
   // A cuenta de sector (openspec/specs/cuentas-de-sector/spec.md): the forms ask which empleado is acting for the acciones con PIN.
   // Only the acciones this account can perform: one it lacks is rejected by authorize() before any PIN matters.
   const permisosConPin = session.sector ? [...session.sector.permisosConPin].filter((permiso) => can(session, permiso)) : null;
-  return permisosConPin ? <OperadorProvider permisosConPin={permisosConPin}>{shell}</OperadorProvider> : shell;
+  // The methods this farmacia accepts (PIN always; the optional ones it switched on): the dialog offers exactly these.
+  const metodos = session.sector?.metodosHabilitados ? [...session.sector.metodosHabilitados] : undefined;
+  return permisosConPin ? (
+    <OperadorProvider permisosConPin={permisosConPin} metodos={metodos}>
+      {shell}
+    </OperadorProvider>
+  ) : (
+    shell
+  );
 }
 
 type AvisoTone = "warn" | "danger";

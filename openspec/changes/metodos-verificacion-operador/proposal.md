@@ -90,7 +90,7 @@ enrolled, how it is read) and enabling it from admin. No duplicated code.
 | `shared/logging/logger.ts` | Modified: redaction from registry |
 | `modules/auditoria/ui/auditoria-diff.tsx` | Modified: method label from registry |
 | `app/(app)/cuenta/*`, Usuarios › detalle, `app/(app)/admin/configuracion/pin/*` | Modified: huella panel, removal, methods section |
-| `prisma/migrations/0132_*`+, `prisma/rollbacks/*.down.sql`, `docs/rollbacks/metodos-verificacion-operador.md` | New |
+| `prisma/migrations/0136_*`+, `prisma/rollbacks/*.down.sql`, `docs/rollbacks/metodos-verificacion-operador.md` | New |
 | `tests/db/catalogo-guardas.test.ts` | Must pass unchanged |
 
 ## Schema and rollback impact

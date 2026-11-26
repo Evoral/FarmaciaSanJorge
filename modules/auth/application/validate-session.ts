@@ -24,6 +24,7 @@ import {
   resolveSessionTenant,
   findSesionCompletaByTokenHash,
   loadPermisosConPin,
+  loadMetodosHabilitados,
   touchSesion,
 } from "../infrastructure/session-repository";
 import { withTenantTransaction } from "@/shared/db/transaction";
@@ -51,6 +52,11 @@ export async function validateSession(rawToken: string, now: Date = new Date()):
       await touchSesion(tx, sesion.id, now);
     }
 
+    // Independent reads on the same tenant transaction: Prisma serializes them on its one connection, so Promise.all is safe (listAccionesConPin does the same).
+    const sector = usuario.esSector
+      ? await Promise.all([loadPermisosConPin(tx, tenantId), loadMetodosHabilitados(tx, tenantId)]).then(([permisosConPin, metodosHabilitados]) => ({ permisosConPin, metodosHabilitados }))
+      : null;
+
     return {
       usuario: { id: usuario.id, email: usuario.email, nombre: usuario.nombre, apellido: usuario.apellido },
       tenantId,
@@ -58,7 +64,7 @@ export async function validateSession(rawToken: string, now: Date = new Date()):
       permisos: usuario.permisos,
       reautenticadaEn: sesion.reautenticadaEn,
       // A cuenta de sector (openspec/specs/cuentas-de-sector/spec.md) carries which acciones ask an empleado's PIN.
-      sector: usuario.esSector ? { permisosConPin: await loadPermisosConPin(tx, tenantId) } : null,
+      sector,
       pasosPendientes: derivarPasosPendientes({
         debeCambiarPassword: usuario.debeCambiarPassword,
         tienePin: usuario.tienePin,

@@ -61,3 +61,17 @@ export interface IdentificadorDeEmpleado<M extends MetodoVerificacion, TContexto
   readonly metodo: M;
   identificar(contexto: TContexto, prueba: PruebaDe<M>): Promise<ResultadoIdentificacion>;
 }
+
+/** The methods a farmacia can switch on and off (everything but the always-on ones), in catalog order. */
+export const METODOS_OPCIONALES: readonly MetodoVerificacion[] = METODOS_VERIFICACION.filter((metodo) => !METODOS[metodo].siempreHabilitado);
+
+/** The methods every farmacia accepts, whatever it configured. */
+export const METODOS_SIEMPRE_HABILITADOS: readonly MetodoVerificacion[] = METODOS_VERIFICACION.filter((metodo) => METODOS[metodo].siempreHabilitado);
+
+/**
+ * Whether a method is accepted given the set loaded with the session. An absent set means "only the always-on methods"
+ * (fail-closed), so a fixture or a session that never loaded the set cannot enable anything.
+ */
+export function metodoHabilitado(metodo: MetodoVerificacion, habilitados: ReadonlySet<MetodoVerificacion> | undefined): boolean {
+  return METODOS[metodo].siempreHabilitado || (habilitados?.has(metodo) ?? false);
+}

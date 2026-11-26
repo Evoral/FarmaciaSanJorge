@@ -23,12 +23,15 @@ export interface CampoDeMetodoProps {
 export interface MetodoEnDialogo {
   /** The dialog opens on the enabled method with the highest priority. */
   prioridad: number;
+  /** The line under the dialog title while this method is selected. */
+  ayuda: string;
   Campo(props: CampoDeMetodoProps): ReactNode;
 }
 
 export const METODOS_EN_DIALOGO: { [M in MetodoVerificacion]: MetodoEnDialogo } = {
   PIN: {
     prioridad: 0,
+    ayuda: "Ingresá tu PIN. La acción queda registrada a tu nombre.",
     Campo: ({ id, ref, valores, onChange }) => (
       <div className="field">
         <label htmlFor={id} className="field-label">

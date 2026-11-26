@@ -22,7 +22,9 @@
  * already authorized. Whether the empleado HOLDS the permiso of the act is
  * the pipeline's next check, not this function's.
  *
- * The method is pluggable (`REGISTRO`, ./metodos-verificacion.ts): the PIN today. `usuario.pin_hash` is still compared only inside
+ * The method is pluggable (`REGISTRO`, ./metodos-verificacion.ts): the PIN today. A farmacia accepts only the methods in
+ * `session.sector.metodosHabilitados` (the always-on ones when absent); a disabled method is rejected BEFORE anything
+ * is scanned, with the generic message and an audit row whose internal reason is `DESHABILITADO`. `usuario.pin_hash` is still compared only inside
  * modules/auth (here and in ./reautenticar.ts).
  *
  * AUDIT: every rejected attempt is audited (as the co-firma does), authored
@@ -36,7 +38,7 @@ import { record as auditRecord, TipoAccion } from "@/shared/audit";
 import type { AuthenticatedSession } from "../domain/session";
 import type { Permiso } from "../domain/permisos";
 import { decideCandidatoOperador } from "../domain/operador-policy";
-import { METODOS_VERIFICACION, type MetodoVerificacion } from "../domain/verificacion-identidad";
+import { METODOS_VERIFICACION, metodoHabilitado, type MetodoVerificacion } from "../domain/verificacion-identidad";
 import { loadUsuarioConPermisos } from "../infrastructure/session-repository";
 import { entradaDe } from "./metodos-verificacion";
 
@@ -60,7 +62,12 @@ export const MENSAJE_OPERADOR_RECHAZADO = "No se pudo identificar al empleado. V
 export async function verificarOperadorEnTx(tx: Prisma.TransactionClient, session: AuthenticatedSession, credencial: unknown): Promise<VerificacionDeOperador> {
   const envoltura = credencialOperadorInput.safeParse(credencial);
   if (!envoltura.success) return { ok: false, message: MENSAJE_OPERADOR_RECHAZADO };
-  const entrada = entradaDe(envoltura.data.prueba.metodo);
+  const metodoPedido = envoltura.data.prueba.metodo;
+  if (!metodoHabilitado(metodoPedido, session.sector?.metodosHabilitados)) {
+    await auditarRechazo(tx, session, metodoPedido, "DESHABILITADO");
+    return { ok: false, message: MENSAJE_OPERADOR_RECHAZADO };
+  }
+  const entrada = entradaDe(metodoPedido);
   const parsed = entrada.prueba.safeParse(envoltura.data.prueba);
   if (!parsed.success) return { ok: false, message: MENSAJE_OPERADOR_RECHAZADO };
   const prueba = parsed.data;
@@ -88,16 +95,20 @@ export async function verificarOperadorEnTx(tx: Prisma.TransactionClient, sessio
   }
 
   const motivoInterno = identificacion.ok ? candidatura : identificacion.motivo;
+  await auditarRechazo(tx, session, prueba.metodo, motivoInterno);
+
+  return { ok: false, message: identificacion.ok ? MENSAJE_OPERADOR_RECHAZADO : entrada.rechazo[identificacion.motivo] };
+}
+
+/** Internal detail for auditoria.ver -- the terminal only ever sees the generic messages. Never the proof. */
+async function auditarRechazo(tx: Prisma.TransactionClient, session: AuthenticatedSession, metodo: MetodoVerificacion, motivoInterno: string): Promise<void> {
   await auditRecord(tx, {
     tenantId: session.tenantId,
     usuarioId: session.usuario.id,
     entidad: "operador",
     entidadId: session.usuario.id,
     accion: TipoAccion.AUTORIZAR,
-    // Internal detail for auditoria.ver -- the terminal only ever sees the messages below. Never the PIN.
-    motivo: `Identificación de empleado rechazada (método ${prueba.metodo}, motivo interno: ${motivoInterno}).`,
+    motivo: `Identificación de empleado rechazada (método ${metodo}, motivo interno: ${motivoInterno}).`,
     contexto: { sesionId: session.sesionId },
   });
-
-  return { ok: false, message: identificacion.ok ? MENSAJE_OPERADOR_RECHAZADO : entrada.rechazo[identificacion.motivo] };
 }

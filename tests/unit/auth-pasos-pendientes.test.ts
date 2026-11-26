@@ -17,6 +17,7 @@ vi.mock("@/modules/auth/infrastructure/session-repository", () => ({
   resolveSessionTenant: (...args: unknown[]) => resolveSessionTenantMock(...args),
   findSesionCompletaByTokenHash: (...args: unknown[]) => findSesionCompletaMock(...args),
   loadPermisosConPin: vi.fn(async () => new Set()),
+  loadMetodosHabilitados: vi.fn(async () => new Set(["PIN"])),
   touchSesion: vi.fn(async () => undefined),
 }));
 

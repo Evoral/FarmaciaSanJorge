@@ -317,6 +317,7 @@ model Tenant {
   usuarios                  Usuario[]
   roles                     Rol[]
   accionesConPin            AccionConPin[]
+  metodosHabilitados        MetodoVerificacionHabilitado[]
   recetaNumeroContador      RecetaNumeroContador?
   librosRubricados          LibroRubricado[]
   loteArchivoNumeroContador LoteArchivoNumeroContador?
@@ -398,6 +399,19 @@ model AccionConPin {
 
   @@id([tenantId, permisoId])
   @@map("accion_con_pin")
+  @@schema("fsj")
+}
+
+/// Optional operador verification methods a farmacia has switched on (migration 0136). A row = the method is accepted in
+/// the operador dialog; the PIN is always on (code) and never stored. Replaced (delete + insert) by modules/operadores.
+model MetodoVerificacionHabilitado {
+  tenantId String @map("tenant_id") @db.Uuid
+  metodo   String
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@id([tenantId, metodo])
+  @@map("metodo_verificacion_habilitado")
   @@schema("fsj")
 }
 

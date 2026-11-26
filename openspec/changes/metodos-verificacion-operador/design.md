@@ -136,8 +136,8 @@ dialog (client registry) -> {operadorMetodo, operador<Clave>…} -> use-form-sub
 
 | Migration | Content |
 |---|---|
-| `0132_metodo_verificacion_habilitado` (slice 1) | `(tenant_id → tenant, metodo text CHECK (metodo ~ '^[A-Z][A-Z_]{1,29}$' AND metodo <> 'PIN'), PK (tenant_id, metodo))`; `fsj.setup_tenant_table`; `GRANT DELETE`, `REVOKE UPDATE` (delete + insert, same as 0077). |
-| `0133_credencial_operador` (slice 2a) | `(tenant_id, usuario_id, metodo text CHECK (same, <> 'PIN'), hash text NOT NULL, creado_en, actualizado_en, PK (tenant_id, usuario_id, metodo), FK (tenant_id, usuario_id) → usuario (tenant_id, id))`; `setup_tenant_table`; `GRANT UPDATE (hash, actualizado_en), DELETE`. |
+| `0136_metodo_verificacion_habilitado` (slice 1) | `(tenant_id → tenant, metodo text CHECK (metodo ~ '^[A-Z][A-Z_]{1,29}$' AND metodo <> 'PIN'), PK (tenant_id, metodo))`; `fsj.setup_tenant_table`; `GRANT DELETE`, `REVOKE UPDATE` (delete + insert, same as 0077). |
+| `0137_credencial_operador` (slice 2a) | `(tenant_id, usuario_id, metodo text CHECK (same, <> 'PIN'), hash text NOT NULL, creado_en, actualizado_en, PK (tenant_id, usuario_id, metodo), FK (tenant_id, usuario_id) → usuario (tenant_id, id))`; `setup_tenant_table`; `GRANT UPDATE (hash, actualizado_en), DELETE`. |
 
 - The PKs lead with `(tenant_id, …)` and satisfy `catalogo-guardas` without adding an exception. `usuario_id` is the
   owner, not an actor, so it is indexed.
@@ -145,7 +145,7 @@ dialog (client registry) -> {operadorMetodo, operador<Clave>…} -> use-form-sub
 - Disabling a method deletes only its config row. `credencial_operador` rows stay, are ignored while the method is
   off, and work again when it is turned back on.
 - Each migration has a `prisma/rollbacks/<m>.down.sql` (drop the table) and Prisma models.
-- `docs/rollbacks/metodos-verificacion-operador.md`: revert the code first, then 0133.down, then 0132.down. PIN never
+- `docs/rollbacks/metodos-verificacion-operador.md`: revert the code first, then 0137.down, then 0136.down. PIN never
   depends on either table, and with the code reverted nothing reads them. Recheck the numbers before applying: the
   repo already has duplicate numbers (0124, 0129, 0130).
 
@@ -154,8 +154,8 @@ dialog (client registry) -> {operadorMetodo, operador<Clave>…} -> use-form-sub
 | Slice | Content | Guard |
 |---|---|---|
 | 0 | Catalog, both registries (PIN only), strategy, carrier, marker, logger, audit label. No copy change. | All `cuentas-de-sector-*`, `auth-pin-disponible`, `auth-configurar-pin*`, `contrasena-temporal-operadores`, `logger` tests **unchanged and green**. New: registry keys equal `METODOS_VERIFICACION` (runtime check against casts); `campoDeOperador`/`camposDeOperador`; carrier collects the fields generically; strategy run against a fake source. |
-| 1 | 0132, `loadMetodosHabilitados`, verifier gate + audit, configure/list use cases, admin section (rendered only when a method is optional), neutral copy | Unit: the gate with a mocked registry entry (no optional method exists yet); the configure command. DB: RLS/grants of the table, `catalogo-guardas`. |
-| 2a | HUELLA in the catalog and the server registry, 0133, source, the three credential use cases | Unit: identification and AMBIGUA; uniqueness with lock; disabled method rejected; redaction of `huella`/`operadorHuella`; audit has no code. DB: the table. |
+| 1 | 0136, `loadMetodosHabilitados`, verifier gate + audit, configure/list use cases, admin section (rendered only when a method is optional), neutral copy | Unit: the gate with a mocked registry entry (no optional method exists yet); the configure command. DB: RLS/grants of the table, `catalogo-guardas`. |
+| 2a | HUELLA in the catalog and the server registry, 0137, source, the three credential use cases | Unit: identification and AMBIGUA; uniqueness with lock; disabled method rejected; redaction of `huella`/`operadorHuella`; audit has no code. DB: the table. |
 | 2b | Client entry, Mi cuenta panel, admin removal in Usuarios › detalle | Manual: a real wedge reader, the dialog defaults and focus, 375px. |
 
 ## How to add a method (the extension guide)

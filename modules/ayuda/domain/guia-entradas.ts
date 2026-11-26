@@ -132,14 +132,14 @@ export const GUIA_AYUDA: GuiaAyuda = [
   },
   {
     id: "configuracion.pin",
-    titulo: "PIN por acción",
+    titulo: "Verificación por acción",
     permisos: ["config.ver", "config.editar"],
     ruta: "/admin/configuracion/pin",
-    pasos: "Entrá a Configuración en el menú, elegí PIN por acción y seleccioná qué acciones requieren PIN en sectores.",
+    pasos: "Entrá a Configuración en el menú, elegí Verificación por acción y seleccioná qué acciones requieren que el empleado se identifique en sectores.",
     detalles: [
       {
         tema: "Cuentas de sector",
-        texto: "En una cuenta de sector, las acciones activadas exigen que el empleado ingrese su PIN personal.",
+        texto: "En una cuenta de sector, las acciones activadas exigen que el empleado se identifique, con su PIN personal o con otro método habilitado.",
       },
     ],
     spec: "cuentas-de-sector",
